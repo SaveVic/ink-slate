@@ -539,6 +539,12 @@
                     </StackPanel.Style>
 
                     <!-- File & Export -->
+                    <ui:Button x:Name="NewDocumentButton"
+                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding NewDocumentCommand}"
+                               ToolTip="New Document (Ctrl+N)">
+                        <ui:SymbolIcon Symbol="Document24" FontSize="18" />
+                    </ui:Button>
                     <ui:Button x:Name="OpenButton"
                                Style="{StaticResource ToolbarIconButtonStyle}"
                                Command="{Binding OpenCommand}"

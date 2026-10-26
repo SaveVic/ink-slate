@@ -897,5 +897,148 @@ public sealed class RibbonAdjustmentTests
             Assert.Equal(WindowState.Maximized, window.WindowState);
         });
     }
+
+    [Fact]
+    public void MainWindow_ShortcutE_ActivatesAndCyclesEraserModes()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.Equal(ToolMode.Pointer, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(EraserMode.Stroke, mainVm.Toolbar.SelectedEraserMode);
+
+            // 1. Press E -> activates Eraser tool in initial Stroke mode
+            var handled = window.HandleNavigationKey(Key.E, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Eraser, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(EraserMode.Stroke, mainVm.Toolbar.SelectedEraserMode);
+
+            // 2. Press E again -> cycles to Point
+            handled = window.HandleNavigationKey(Key.E, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Eraser, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(EraserMode.Point, mainVm.Toolbar.SelectedEraserMode);
+
+            // 3. Press E again -> cycles to Object
+            handled = window.HandleNavigationKey(Key.E, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Eraser, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(EraserMode.Object, mainVm.Toolbar.SelectedEraserMode);
+
+            // 4. Press E again -> cycles back to Stroke
+            handled = window.HandleNavigationKey(Key.E, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Eraser, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(EraserMode.Stroke, mainVm.Toolbar.SelectedEraserMode);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_ShortcutL_ActivatesAndCyclesLassoFilterModes()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.Equal(ToolMode.Pointer, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(LassoFilterMode.AllObjects, mainVm.Toolbar.SelectedLassoFilterMode);
+
+            // 1. Press L -> activates Lasso tool in initial AllObjects mode
+            var handled = window.HandleNavigationKey(Key.L, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Lasso, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(LassoFilterMode.AllObjects, mainVm.Toolbar.SelectedLassoFilterMode);
+
+            // 2. Press L again -> cycles to StrokesOnly
+            handled = window.HandleNavigationKey(Key.L, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Lasso, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(LassoFilterMode.StrokesOnly, mainVm.Toolbar.SelectedLassoFilterMode);
+
+            // 3. Press L again -> cycles to ElementsOnly
+            handled = window.HandleNavigationKey(Key.L, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Lasso, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(LassoFilterMode.ElementsOnly, mainVm.Toolbar.SelectedLassoFilterMode);
+
+            // 4. Press L again -> cycles back to AllObjects
+            handled = window.HandleNavigationKey(Key.L, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(ToolMode.Lasso, mainVm.Toolbar.ActiveTool);
+            Assert.Equal(LassoFilterMode.AllObjects, mainVm.Toolbar.SelectedLassoFilterMode);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_NewDocument_ResetsWorkspaceAndPromptsWhenDirty()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            // 1. Mark document dirty by adding text
+            Assert.NotNull(mainVm.ActivePage);
+            var text = mainVm.ActivePage.AddTextElement(new Point(20, 20));
+            text.Text = "Unsaved draft notes";
+            Assert.True(mainVm.IsDirty);
+
+            // 2. User presses Ctrl+N but clicks Cancel on confirmation prompt
+            var confirmCount = 0;
+            mainVm.ConfirmDialog = (msg, title) =>
+            {
+                confirmCount++;
+                Assert.Contains("unsaved changes", msg);
+                return false;
+            };
+
+            var handled = window.HandleNavigationKey(Key.N, ModifierKeys.Control);
+            Assert.True(handled);
+            Assert.Equal(1, confirmCount);
+            Assert.True(mainVm.IsDirty); // Not reset!
+            Assert.Single(mainVm.ActivePage.Elements);
+
+            // 3. User presses Ctrl+N and clicks OK
+            mainVm.ConfirmDialog = (_, _) =>
+            {
+                confirmCount++;
+                return true;
+            };
+
+            handled = window.HandleNavigationKey(Key.N, ModifierKeys.Control);
+            Assert.True(handled);
+            Assert.Equal(2, confirmCount);
+            Assert.False(mainVm.IsDirty);
+            Assert.Equal(NoteDocument.DefaultTitle, mainVm.DocumentTitle);
+            Assert.Null(mainVm.CurrentFilePath);
+            Assert.Single(mainVm.Pages);
+            Assert.Empty(mainVm.Pages[0].Elements);
+        });
+    }
+
+    [Fact]
+    public void ZoomScrollViewer_SpaceHoldTemporaryPan_ActivatesAndRestoresCursor()
+    {
+        RunInSta(() =>
+        {
+            var viewer = new ZoomScrollViewer();
+
+            Assert.False(viewer.IsSpaceKeyDown);
+            Assert.Null(viewer.Cursor);
+
+            // Setting Space down updates state and cursor to Hand
+            viewer.SetSpaceKeyDown(true);
+            Assert.True(viewer.IsSpaceKeyDown);
+            Assert.Equal(Cursors.Hand, viewer.Cursor);
+
+            // Setting Space up restores state and default cursor
+            viewer.SetSpaceKeyDown(false);
+            Assert.False(viewer.IsSpaceKeyDown);
+            Assert.Null(viewer.Cursor);
+        });
+    }
 }
 

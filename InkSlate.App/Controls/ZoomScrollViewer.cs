@@ -105,6 +105,26 @@ public sealed class ZoomScrollViewer : ScrollViewer
     }
 
     public bool IsPanning => _isPanning;
+    public bool IsSpaceKeyDown => _isSpaceKeyDown;
+
+    public void SetSpaceKeyDown(bool isDown)
+    {
+        if (_isSpaceKeyDown == isDown)
+        {
+            return;
+        }
+
+        _isSpaceKeyDown = isDown;
+        if (!isDown && _isPanning)
+        {
+            EndPan();
+        }
+        else
+        {
+            UpdateCursor();
+        }
+    }
+
     public double TargetHorizontalOffset { get; private set; }
     public double TargetVerticalOffset { get; private set; }
     public ScaleTransform ContentScaleTransform => _scaleTransform;

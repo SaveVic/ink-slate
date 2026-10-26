@@ -964,6 +964,35 @@ public sealed partial class MainViewModel : ObservableObject
         DeleteSpecificPageCommand.NotifyCanExecuteChanged();
     }
 
+    public void CloseAllPopovers()
+    {
+        IsPageSetupOpen = false;
+        IsPdfExportOpen = false;
+        Toolbar.IsPenOptionsOpen = false;
+        Toolbar.IsEraserOptionsOpen = false;
+        Toolbar.IsLassoOptionsOpen = false;
+        Toolbar.IsTextOptionsOpen = false;
+    }
+
+    [RelayCommand]
+    public void NewDocument()
+    {
+        CloseAllPopovers();
+
+        if (IsDirty)
+        {
+            var confirmed = ConfirmDialog(
+                "The current document has unsaved changes. Create a new document anyway?",
+                "New Document");
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        LoadDocument(new NoteDocument(), filePath: null);
+    }
+
     [RelayCommand]
     public async Task SaveAsync()
     {

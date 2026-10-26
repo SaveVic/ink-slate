@@ -91,12 +91,12 @@ public partial class MainWindow : FluentWindow
             }
             else if (key == Key.E)
             {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Eraser);
+                ViewModel.Toolbar.ActivateOrCycleEraserCommand.Execute(null);
                 return true;
             }
             else if (key == Key.L)
             {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Lasso);
+                ViewModel.Toolbar.ActivateOrCycleLassoCommand.Execute(null);
                 return true;
             }
             else if (key == Key.T)
@@ -135,6 +135,15 @@ public partial class MainWindow : FluentWindow
         }
         else if (modifiers == ModifierKeys.Control)
         {
+            if (key == Key.N)
+            {
+                if (ViewModel.NewDocumentCommand.CanExecute(null))
+                {
+                    ViewModel.NewDocumentCommand.Execute(null);
+                    return true;
+                }
+            }
+
             if (key == Key.S)
             {
                 if (ViewModel.SaveCommand.CanExecute(null))
@@ -211,6 +220,13 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        if (e.Key == Key.Space && !e.IsRepeat)
+        {
+            ViewportScrollViewer?.SetSpaceKeyDown(true);
+            e.Handled = true;
+            return;
+        }
+
         if (HandleNavigationKey(e.Key, Keyboard.Modifiers))
         {
             e.Handled = true;
@@ -218,6 +234,26 @@ public partial class MainWindow : FluentWindow
         }
 
         base.OnPreviewKeyDown(e);
+    }
+
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        if (e.Key == Key.Space)
+        {
+            ViewportScrollViewer?.SetSpaceKeyDown(false);
+            e.Handled = true;
+            return;
+        }
+
+        base.OnPreviewKeyUp(e);
+    }
+
+    protected override void OnDeactivated(EventArgs e)
+    {
+        ViewportScrollViewer?.SetSpaceKeyDown(false);
+        base.OnDeactivated(e);
     }
 
     private void OnPageNavigationScrollRequested(PageViewModel targetPage)

@@ -218,6 +218,57 @@ public sealed partial class ToolbarViewModel : ObservableObject
     partial void OnSelectedTextColorHexChanged(string value) => UpdateSubtoolSelectionStates();
     partial void OnSelectedEraserSizeChanged(double value) => UpdateSubtoolSelectionStates();
     partial void OnSelectedEraserModeChanged(EraserMode value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedLassoFilterModeChanged(LassoFilterMode value) => UpdateSubtoolSelectionStates();
+
+    [RelayCommand]
+    public void ActivateOrCycleEraser()
+    {
+        IsPenOptionsOpen = false;
+        IsEraserOptionsOpen = false;
+        IsLassoOptionsOpen = false;
+        IsTextOptionsOpen = false;
+
+        if (ActiveTool != ToolMode.Eraser)
+        {
+            ActiveTool = ToolMode.Eraser;
+            ApplyAttributesToSharedInstance();
+            UpdateSubtoolSelectionStates();
+            return;
+        }
+
+        SelectedEraserMode = SelectedEraserMode switch
+        {
+            EraserMode.Stroke => EraserMode.Point,
+            EraserMode.Point => EraserMode.Object,
+            EraserMode.Object => EraserMode.Stroke,
+            _ => EraserMode.Stroke
+        };
+    }
+
+    [RelayCommand]
+    public void ActivateOrCycleLasso()
+    {
+        IsPenOptionsOpen = false;
+        IsEraserOptionsOpen = false;
+        IsLassoOptionsOpen = false;
+        IsTextOptionsOpen = false;
+
+        if (ActiveTool != ToolMode.Lasso)
+        {
+            ActiveTool = ToolMode.Lasso;
+            ApplyAttributesToSharedInstance();
+            UpdateSubtoolSelectionStates();
+            return;
+        }
+
+        SelectedLassoFilterMode = SelectedLassoFilterMode switch
+        {
+            LassoFilterMode.AllObjects => LassoFilterMode.StrokesOnly,
+            LassoFilterMode.StrokesOnly => LassoFilterMode.ElementsOnly,
+            LassoFilterMode.ElementsOnly => LassoFilterMode.AllObjects,
+            _ => LassoFilterMode.AllObjects
+        };
+    }
 
     [RelayCommand]
     private void SelectTool(ToolMode mode)

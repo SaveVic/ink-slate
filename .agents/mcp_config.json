@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+        "roslyn-mcp": {
+            "command": "madq-roslynmcp",
+            "args": [],
+            "timeoutSeconds": 120
+        },
+        "microsoft-learn": {
+            "serverUrl": "https://learn.microsoft.com/api/mcp"
+        },
+        "context7": {
+            "serverUrl": "https://mcp.context7.com/mcp"
+        }
+    }
+}

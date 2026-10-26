@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "skills": {
+    "canvas-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/canvas-design/SKILL.md",
+      "computedHash": "4e8bbc31d3b159efdd32d31a63ba8cd5a44d84911e924c1f2c709c50cbcdd0ec"
+    },
+    "cscheck": {
+      "source": "Aaronontheweb/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cscheck/SKILL.md",
+      "computedHash": "f72ee5493f2f146ecd7204968a5a7da249158b5c4c77c4f968cd2d651c76e8fa"
+    },
+    "csharp-concurrency-patterns": {
+      "source": "Aaronontheweb/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/csharp-concurrency-patterns/SKILL.md",
+      "computedHash": "e8c5da1a61b48fb091697ca9ff992de6f7efd2788addf3ddf414ec26d61e4167"
+    },
+    "csharp-expert": {
+      "source": "dotnet/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/dotnet/skills/csharp-expert/SKILL.md",
+      "computedHash": "bae4d2d70956eb574068a5bf9fe7b64f8d2edbe2d314fce4603f5970331b13e5"
+    },
+    "csharp-nullable-reference-types": {
+      "source": "Aaronontheweb/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/csharp-nullable-reference-types/SKILL.md",
+      "computedHash": "a6e45134cffd5d36de1faab4b8bc55afac2c709b5966e97b099c0269d372d38c"
+    },
+    "csharp-refactoring": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Platform/Official-DotNet/skills/csharp-refactoring/SKILL.md",
+      "computedHash": "4eb60f90964feedeb93cee890f3fe31f014e6439ca9b418d3756b9e5bb52dbd1"
+    },
+    "csharp-scripts": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Platform/Official-DotNet-Advanced/skills/csharp-scripts/SKILL.md",
+      "computedHash": "3097a7caa6b8e5cfb05b42b31698f4bd3e642217bacdbc49e604a59f219cb58d"
+    },
+    "csharpier": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Tools/CSharpier/skills/csharpier/SKILL.md",
+      "computedHash": "ec97b23cf20abab28f7b49e3ae54bcfb8d818f511d69480e6522234220b51dd6"
+    },
+    "modern-csharp": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Tools/Modern-CSharp/skills/modern-csharp/SKILL.md",
+      "computedHash": "2dd67a980b7b6ddd3e356ecd2aacd77535f2494dbe86cb4cfc955b519a233b3b"
+    },
+    "msbuild": {
+      "source": "dotnet/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/dotnet/skills/msbuild/SKILL.md",
+      "computedHash": "875990cbb7a1f4ee87c0f639bb98840f3892e7109d19bd4e211d4ff644aa6ae3"
+    },
+    "mvvm": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Libraries/MVVM-Toolkit/skills/mvvm/SKILL.md",
+      "computedHash": "0c7d34a038dcb9eacaff0cf769e743ad3e7e097202c450632b6ee1460404dfb1"
+    },
+    "pdf": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pdf/SKILL.md",
+      "computedHash": "37226d4220d844377e6b2a386c51a011df4cd130855ff0b80bcc22f9c28abd57"
+    },
+    "serialization": {
+      "source": "Aaronontheweb/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/serialization/SKILL.md",
+      "computedHash": "8ab5078f9c5e898ad0e88fdbe1177275d4c1790f258e8137e7dfcb999919d61b"
+    },
+    "wpf": {
+      "source": "managedcode/dotnet-skills",
+      "sourceType": "github",
+      "skillPath": "catalog/Frameworks/WPF/skills/wpf/SKILL.md",
+      "computedHash": "d7568e857eaf8e53932006bfe703421df90b0625fcca1841aa37b126fb6c5d56"
+    }
+  }
+}

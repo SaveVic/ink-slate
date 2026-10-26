@@ -1,8 +1,12 @@
+using System.Collections;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Ink;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using InkSlate.Core.Models;
+using InkSlate.Core.Models.CanvasElements;
 using InkSlate.Core.UndoRedo;
 
 namespace InkSlate.App.ViewModels;
@@ -11,6 +15,7 @@ public sealed partial class PageViewModel : ObservableObject
 {
     public const int MaxStylusPointsPerPage = 100_000;
 
+    private readonly SynchronizedCanvasElementList _synchronizedElements;
     private byte[]? _compressedIsfBytes;
 
     [ObservableProperty]
@@ -47,6 +52,12 @@ public sealed partial class PageViewModel : ObservableObject
         _width = model.Width;
         _height = model.Height;
         _backgroundHex = model.BackgroundHex;
+
+        _synchronizedElements = new SynchronizedCanvasElementList(this, model.Elements);
+        foreach (var element in model.Elements)
+        {
+            Elements.Add(new CanvasElementViewModel(element));
+        }
     }
 
     public NotePage Model { get; }
@@ -54,6 +65,46 @@ public sealed partial class PageViewModel : ObservableObject
     public ToolbarViewModel? Toolbar { get; }
     public Guid Id => Model.Id;
     public int CompressedIsfByteCount => _compressedIsfBytes?.Length ?? 0;
+
+    public ObservableCollection<CanvasElementViewModel> Elements { get; } = [];
+
+    public void AddElement(CanvasElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        var vm = new CanvasElementViewModel(element);
+        Elements.Add(vm);
+        Model.Elements.Add(element);
+        IsDirty = true;
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            UndoRedo.Record(new ElementAddedOperation(Id, _synchronizedElements, element));
+        }
+    }
+
+    [RelayCommand]
+    public void RemoveElement(CanvasElementViewModel? elementVm)
+    {
+        if (elementVm is null)
+        {
+            return;
+        }
+
+        var index = Elements.IndexOf(elementVm);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Elements.RemoveAt(index);
+        Model.Elements.Remove(elementVm.Model);
+        IsDirty = true;
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            UndoRedo.Record(new ElementRemovedOperation(Id, _synchronizedElements, elementVm.Model, index));
+        }
+    }
 
     public void LoadIsfBytes(byte[]? isfBytes)
     {
@@ -150,6 +201,40 @@ public sealed partial class PageViewModel : ObservableObject
         IsDirty = true;
     }
 
+    private void OnSynchronizedElementInserted(int index, CanvasElement item)
+    {
+        IsDirty = true;
+        for (var i = 0; i < Elements.Count; i++)
+        {
+            if (ReferenceEquals(Elements[i].Model, item))
+            {
+                return;
+            }
+        }
+
+        var insertIndex = Math.Clamp(index, 0, Elements.Count);
+        Elements.Insert(insertIndex, new CanvasElementViewModel(item));
+    }
+
+    private void OnSynchronizedElementRemoved(CanvasElement item)
+    {
+        IsDirty = true;
+        for (var i = 0; i < Elements.Count; i++)
+        {
+            if (ReferenceEquals(Elements[i].Model, item))
+            {
+                Elements.RemoveAt(i);
+                break;
+            }
+        }
+    }
+
+    private void OnSynchronizedElementsCleared()
+    {
+        IsDirty = true;
+        Elements.Clear();
+    }
+
     private static StrokeCollection EnforceStylusPointBudget(StrokeCollection source)
     {
         var result = new StrokeCollection();
@@ -186,4 +271,78 @@ public sealed partial class PageViewModel : ObservableObject
     partial void OnWidthChanged(double value) => Model.Width = value;
     partial void OnHeightChanged(double value) => Model.Height = value;
     partial void OnBackgroundHexChanged(string value) => Model.BackgroundHex = value;
+
+    private sealed class SynchronizedCanvasElementList : IList<CanvasElement>
+    {
+        private readonly PageViewModel _owner;
+        private readonly IList<CanvasElement> _inner;
+
+        public SynchronizedCanvasElementList(PageViewModel owner, IList<CanvasElement> inner)
+        {
+            _owner = owner;
+            _inner = inner;
+        }
+
+        public int Count => _inner.Count;
+        public bool IsReadOnly => _inner.IsReadOnly;
+
+        public CanvasElement this[int index]
+        {
+            get => _inner[index];
+            set
+            {
+                _inner[index] = value;
+                _owner.OnSynchronizedElementRemoved(_inner[index]);
+                _owner.OnSynchronizedElementInserted(index, value);
+            }
+        }
+
+        public void Add(CanvasElement item)
+        {
+            _inner.Add(item);
+            _owner.OnSynchronizedElementInserted(_inner.Count - 1, item);
+        }
+
+        public void Clear()
+        {
+            _inner.Clear();
+            _owner.OnSynchronizedElementsCleared();
+        }
+
+        public bool Contains(CanvasElement item) => _inner.Contains(item);
+
+        public void CopyTo(CanvasElement[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
+
+        public IEnumerator<CanvasElement> GetEnumerator() => _inner.GetEnumerator();
+
+        public int IndexOf(CanvasElement item) => _inner.IndexOf(item);
+
+        public void Insert(int index, CanvasElement item)
+        {
+            _inner.Insert(index, item);
+            _owner.OnSynchronizedElementInserted(index, item);
+        }
+
+        public bool Remove(CanvasElement item)
+        {
+            var removed = _inner.Remove(item);
+            if (removed)
+            {
+                _owner.OnSynchronizedElementRemoved(item);
+            }
+            return removed;
+        }
+
+        public void RemoveAt(int index)
+        {
+            if (index >= 0 && index < _inner.Count)
+            {
+                var item = _inner[index];
+                _inner.RemoveAt(index);
+                _owner.OnSynchronizedElementRemoved(item);
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }

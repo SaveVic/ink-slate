@@ -53,7 +53,11 @@
                                             UndoRedoManager="{Binding UndoRedo}"
                                             IsPageDirty="{Binding IsDirty, Mode=TwoWay}"
                                             InkDrawingAttributes="{Binding Toolbar.CurrentDrawingAttributes}"
-                                            ActiveToolMode="{Binding Toolbar.ActiveTool, FallbackValue={x:Static models:ToolMode.Pen}}" />
+                                            ActiveToolMode="{Binding Toolbar.ActiveTool, FallbackValue={x:Static models:ToolMode.Pen}}"
+                                            ActiveEraserMode="{Binding Toolbar.SelectedEraserMode, FallbackValue={x:Static models:EraserMode.Stroke}}"
+                                            EraserSize="{Binding Toolbar.SelectedEraserSize, FallbackValue=16.0}"
+                                            PageElements="{Binding Elements}"
+                                            RemoveElementCommand="{Binding RemoveElementCommand}" />
             </Border>
         </DataTemplate>
 
@@ -381,6 +385,105 @@
                                         BorderThickness="0"
                                         Command="{Binding DataContext.Toolbar.SelectPenThicknessCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
                                         CommandParameter="{Binding ThicknessDip}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Grid>
+                                                <Ellipse Width="{Binding DotDiameter}"
+                                                         Height="{Binding DotDiameter}"
+                                                         Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Compact Eraser Options Popover -->
+            <Border x:Name="EraserOptionsPopover"
+                    Margin="0,52,0,0"
+                    Padding="10,6"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Effect="{StaticResource FloatingSurfaceShadow}"
+                    Visibility="{Binding Toolbar.IsEraserOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 3-Mode Segmented Eraser Buttons -->
+                    <ui:Button x:Name="StrokeEraserModeButton"
+                               Command="{Binding Toolbar.SelectEraserModeCommand}"
+                               CommandParameter="{x:Static models:EraserMode.Stroke}"
+                               ToolTip="Stroke Eraser">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsStrokeEraserMode}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:SymbolIcon Symbol="Eraser24" FontSize="18" />
+                    </ui:Button>
+
+                    <ui:Button x:Name="PointEraserModeButton"
+                               Command="{Binding Toolbar.SelectEraserModeCommand}"
+                               CommandParameter="{x:Static models:EraserMode.Point}"
+                               ToolTip="Point Eraser">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsPointEraserMode}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:SymbolIcon Symbol="CircleSmall24" FontSize="18" />
+                    </ui:Button>
+
+                    <ui:Button x:Name="ObjectEraserModeButton"
+                               Command="{Binding Toolbar.SelectEraserModeCommand}"
+                               CommandParameter="{x:Static models:EraserMode.Object}"
+                               ToolTip="Object Eraser">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsObjectEraserMode}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:SymbolIcon Symbol="Shapes24" FontSize="18" />
+                    </ui:Button>
+
+                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+
+                    <!-- 3 Eraser Size Dots (Zero text labels) -->
+                    <ItemsControl x:Name="EraserSizeDotsItemsControl"
+                                  ItemsSource="{Binding Toolbar.EraserSizeOptions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="26"
+                                        Height="26"
+                                        Margin="3,0"
+                                        Padding="0"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.Toolbar.SelectEraserSizeCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                        CommandParameter="{Binding SizeDip}">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Grid>

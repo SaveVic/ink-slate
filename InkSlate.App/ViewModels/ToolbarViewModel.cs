@@ -9,6 +9,7 @@ namespace InkSlate.App.ViewModels;
 
 public sealed record ColorSwatchOption(string Hex, SolidColorBrush FrozenBrush);
 public sealed record ThicknessOption(double ThicknessDip, double DotDiameter);
+public sealed record EraserSizeOption(double SizeDip, double DotDiameter);
 
 public sealed partial class ToolbarViewModel : ObservableObject
 {
@@ -20,7 +21,10 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public const string DefaultPenColorHex = "#FF1E1E1E";
     public const string DefaultHighlighterColorHex = "#66FFEB3B";
 
+    public const double DefaultEraserSize = 16.0;
+
     public static IReadOnlyList<double> PenThicknessPresets { get; } = [1.5, 2.5, 4.0, 6.5];
+    public static IReadOnlyList<double> EraserSizePresets { get; } = [8.0, 16.0, 32.0];
 
     public static IReadOnlyList<string> CuratedSwatchHexes { get; } =
     [
@@ -53,6 +57,18 @@ public sealed partial class ToolbarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPenOptionsOpen;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStrokeEraserMode))]
+    [NotifyPropertyChangedFor(nameof(IsPointEraserMode))]
+    [NotifyPropertyChangedFor(nameof(IsObjectEraserMode))]
+    private EraserMode _selectedEraserMode = EraserMode.Stroke;
+
+    [ObservableProperty]
+    private double _selectedEraserSize = DefaultEraserSize;
+
+    [ObservableProperty]
+    private bool _isEraserOptionsOpen;
+
     public ToolbarViewModel()
     {
         ColorSwatches = CreateFrozenSwatches();
@@ -63,6 +79,12 @@ public sealed partial class ToolbarViewModel : ObservableObject
             new ThicknessOption(4.0, 12.0),
             new ThicknessOption(6.5, 16.0)
         ];
+        EraserSizeOptions =
+        [
+            new EraserSizeOption(8.0, 7.0),
+            new EraserSizeOption(16.0, 11.0),
+            new EraserSizeOption(32.0, 16.0)
+        ];
 
         CurrentDrawingAttributes = new DrawingAttributes();
         ApplyAttributesToSharedInstance();
@@ -71,6 +93,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public DrawingAttributes CurrentDrawingAttributes { get; }
     public IReadOnlyList<ColorSwatchOption> ColorSwatches { get; }
     public IReadOnlyList<ThicknessOption> ThicknessOptions { get; }
+    public IReadOnlyList<EraserSizeOption> EraserSizeOptions { get; }
 
     public bool IsPenToolActive => ActiveTool == ToolMode.Pen;
     public bool IsHighlighterToolActive => ActiveTool == ToolMode.Highlighter;
@@ -79,16 +102,32 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public bool IsTextToolActive => ActiveTool == ToolMode.Text;
     public bool IsImageToolActive => ActiveTool == ToolMode.Image;
 
+    public bool IsStrokeEraserMode => SelectedEraserMode == EraserMode.Stroke;
+    public bool IsPointEraserMode => SelectedEraserMode == EraserMode.Point;
+    public bool IsObjectEraserMode => SelectedEraserMode == EraserMode.Object;
+
     [RelayCommand]
     private void SelectTool(ToolMode mode)
     {
-        if (ActiveTool == mode && mode is ToolMode.Pen or ToolMode.Highlighter)
+        if (ActiveTool == mode)
         {
-            IsPenOptionsOpen = !IsPenOptionsOpen;
-            return;
+            if (mode is ToolMode.Pen or ToolMode.Highlighter)
+            {
+                IsEraserOptionsOpen = false;
+                IsPenOptionsOpen = !IsPenOptionsOpen;
+                return;
+            }
+
+            if (mode == ToolMode.Eraser)
+            {
+                IsPenOptionsOpen = false;
+                IsEraserOptionsOpen = !IsEraserOptionsOpen;
+                return;
+            }
         }
 
         IsPenOptionsOpen = false;
+        IsEraserOptionsOpen = false;
         ActiveTool = mode;
         ApplyAttributesToSharedInstance();
     }
@@ -125,6 +164,26 @@ public sealed partial class ToolbarViewModel : ObservableObject
         SelectedPenThickness = Math.Clamp(thickness, 0.5, 32.0);
         ApplyAttributesToSharedInstance();
         IsPenOptionsOpen = false;
+    }
+
+    [RelayCommand]
+    private void SelectEraserMode(EraserMode mode)
+    {
+        SelectedEraserMode = mode;
+        IsEraserOptionsOpen = false;
+    }
+
+    [RelayCommand]
+    private void SelectEraserSize(double size)
+    {
+        if (!double.IsFinite(size) || size <= 0.0)
+        {
+            return;
+        }
+
+        SelectedEraserSize = Math.Clamp(size, 2.0, 128.0);
+        SelectedEraserMode = EraserMode.Point;
+        IsEraserOptionsOpen = false;
     }
 
     private void ApplyAttributesToSharedInstance()

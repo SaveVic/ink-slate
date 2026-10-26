@@ -16,5 +16,15 @@
                    Stylus.IsFlicksEnabled="False"
                    Stylus.IsTapFeedbackEnabled="False"
                    Stylus.IsTouchFeedbackEnabled="False" />
+        <Canvas x:Name="CursorOverlayCanvas"
+                IsHitTestVisible="False"
+                ClipToBounds="True">
+            <Ellipse x:Name="EraserCursorIndicator"
+                     IsHitTestVisible="False"
+                     Visibility="Collapsed"
+                     Stroke="#801E1E1E"
+                     StrokeThickness="1"
+                     Fill="#141E1E1E" />
+        </Canvas>
     </Grid>
 </UserControl>

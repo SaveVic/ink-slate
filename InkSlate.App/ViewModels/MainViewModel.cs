@@ -70,7 +70,8 @@ public sealed partial class MainViewModel : ObservableObject
         Toolbar = toolbar ?? new ToolbarViewModel();
         Toolbar.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen)
+            if ((e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen) ||
+                (e.PropertyName == nameof(Toolbar.IsEraserOptionsOpen) && Toolbar.IsEraserOptionsOpen))
             {
                 IsPageSetupOpen = false;
             }
@@ -370,6 +371,7 @@ public sealed partial class MainViewModel : ObservableObject
             SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
             HasDimensionInputError = false;
             Toolbar.IsPenOptionsOpen = false;
+            Toolbar.IsEraserOptionsOpen = false;
         }
 
         IsPageSetupOpen = !IsPageSetupOpen;

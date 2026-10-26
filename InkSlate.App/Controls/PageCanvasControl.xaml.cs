@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using InkSlate.App.ViewModels;
 using InkSlate.Core.Models;
 using InkSlate.Core.UndoRedo;
 
@@ -57,6 +59,34 @@ public partial class PageCanvasControl : UserControl
             typeof(PageCanvasControl),
             new PropertyMetadata(ToolMode.Pen, OnActiveToolModePropertyChanged));
 
+    public static readonly DependencyProperty ActiveEraserModeProperty =
+        DependencyProperty.Register(
+            nameof(ActiveEraserMode),
+            typeof(EraserMode),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(EraserMode.Stroke, OnActiveEraserModePropertyChanged));
+
+    public static readonly DependencyProperty EraserSizeProperty =
+        DependencyProperty.Register(
+            nameof(EraserSize),
+            typeof(double),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(ToolbarViewModel.DefaultEraserSize, OnEraserSizePropertyChanged));
+
+    public static readonly DependencyProperty PageElementsProperty =
+        DependencyProperty.Register(
+            nameof(PageElements),
+            typeof(IList<CanvasElementViewModel>),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty RemoveElementCommandProperty =
+        DependencyProperty.Register(
+            nameof(RemoveElementCommand),
+            typeof(ICommand),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(null));
+
     private bool _isSyncingStrokes;
     private StrokeCollection? _subscribedStrokes;
 
@@ -85,6 +115,7 @@ public partial class PageCanvasControl : UserControl
         };
 
         AttachStrokesHandler(InternalInkCanvas.Strokes);
+        RefreshEraserShape();
     }
 
     public Guid PageId
@@ -123,7 +154,199 @@ public partial class PageCanvasControl : UserControl
         set => SetValue(ActiveToolModeProperty, value);
     }
 
+    public EraserMode ActiveEraserMode
+    {
+        get => (EraserMode)GetValue(ActiveEraserModeProperty);
+        set => SetValue(ActiveEraserModeProperty, value);
+    }
+
+    public double EraserSize
+    {
+        get => (double)GetValue(EraserSizeProperty);
+        set => SetValue(EraserSizeProperty, value);
+    }
+
+    public IList<CanvasElementViewModel>? PageElements
+    {
+        get => (IList<CanvasElementViewModel>?)GetValue(PageElementsProperty);
+        set => SetValue(PageElementsProperty, value);
+    }
+
+    public ICommand? RemoveElementCommand
+    {
+        get => (ICommand?)GetValue(RemoveElementCommandProperty);
+        set => SetValue(RemoveElementCommandProperty, value);
+    }
+
     public InkCanvas InkSurface => InternalInkCanvas;
+
+    public Ellipse EraserCursor => EraserCursorIndicator;
+
+    public void RefreshEraserShape()
+    {
+        var clampedSize = double.IsFinite(EraserSize) && EraserSize > 0.0
+            ? Math.Clamp(EraserSize, 2.0, 128.0)
+            : ToolbarViewModel.DefaultEraserSize;
+
+        InternalInkCanvas.EraserShape = new EllipseStylusShape(clampedSize, clampedSize);
+
+        if (InternalInkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint)
+        {
+            InternalInkCanvas.EditingMode = InkCanvasEditingMode.None;
+            InternalInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
+        }
+
+        if (EraserCursorIndicator is not null)
+        {
+            EraserCursorIndicator.Width = clampedSize;
+            EraserCursorIndicator.Height = clampedSize;
+        }
+    }
+
+    public void UpdateEraserCursor(Point point)
+    {
+        if (ActiveToolMode != ToolMode.Eraser || ActiveEraserMode != EraserMode.Point)
+        {
+            HideEraserCursor();
+            return;
+        }
+
+        var clampedSize = double.IsFinite(EraserSize) && EraserSize > 0.0
+            ? Math.Clamp(EraserSize, 2.0, 128.0)
+            : ToolbarViewModel.DefaultEraserSize;
+
+        if (EraserCursorIndicator is not null)
+        {
+            EraserCursorIndicator.Width = clampedSize;
+            EraserCursorIndicator.Height = clampedSize;
+            Canvas.SetLeft(EraserCursorIndicator, point.X - (clampedSize / 2.0));
+            Canvas.SetTop(EraserCursorIndicator, point.Y - (clampedSize / 2.0));
+            EraserCursorIndicator.Visibility = Visibility.Visible;
+        }
+    }
+
+    public void HideEraserCursor()
+    {
+        if (EraserCursorIndicator is not null)
+        {
+            EraserCursorIndicator.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    public int EraseElementsAtPoint(Point pagePoint)
+    {
+        if (PageElements is not { Count: > 0 })
+        {
+            return 0;
+        }
+
+        var hitElements = new List<CanvasElementViewModel>();
+        for (var i = PageElements.Count - 1; i >= 0; i--)
+        {
+            var element = PageElements[i];
+            if (element.HitTest(pagePoint))
+            {
+                hitElements.Add(element);
+            }
+        }
+
+        if (hitElements.Count == 0)
+        {
+            return 0;
+        }
+
+        var removedCount = 0;
+        foreach (var element in hitElements)
+        {
+            if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(element))
+            {
+                RemoveElementCommand.Execute(element);
+                removedCount++;
+            }
+            else
+            {
+                var originalIndex = PageElements.IndexOf(element);
+                if (originalIndex >= 0)
+                {
+                    PageElements.RemoveAt(originalIndex);
+                    IsPageDirty = true;
+                    removedCount++;
+                }
+            }
+        }
+
+        return removedCount;
+    }
+
+    protected override void OnPreviewMouseMove(MouseEventArgs e)
+    {
+        base.OnPreviewMouseMove(e);
+        var pos = e.GetPosition(this);
+
+        if (ActiveToolMode == ToolMode.Eraser)
+        {
+            if (ActiveEraserMode == EraserMode.Point)
+            {
+                UpdateEraserCursor(pos);
+            }
+            else if (ActiveEraserMode == EraserMode.Object && e.LeftButton == MouseButtonState.Pressed)
+            {
+                EraseElementsAtPoint(pos);
+            }
+        }
+    }
+
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonDown(e);
+
+        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+        {
+            var pos = e.GetPosition(this);
+            EraseElementsAtPoint(pos);
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        HideEraserCursor();
+    }
+
+    protected override void OnPreviewStylusMove(StylusEventArgs e)
+    {
+        base.OnPreviewStylusMove(e);
+        var pos = e.GetPosition(this);
+
+        if (ActiveToolMode == ToolMode.Eraser)
+        {
+            if (ActiveEraserMode == EraserMode.Point)
+            {
+                UpdateEraserCursor(pos);
+            }
+            else if (ActiveEraserMode == EraserMode.Object)
+            {
+                EraseElementsAtPoint(pos);
+            }
+        }
+    }
+
+    protected override void OnPreviewStylusDown(StylusDownEventArgs e)
+    {
+        base.OnPreviewStylusDown(e);
+
+        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+        {
+            var pos = e.GetPosition(this);
+            EraseElementsAtPoint(pos);
+        }
+    }
+
+    protected override void OnStylusLeave(StylusEventArgs e)
+    {
+        base.OnStylusLeave(e);
+        HideEraserCursor();
+    }
 
     private static void OnPageStrokesPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -143,21 +366,63 @@ public partial class PageCanvasControl : UserControl
 
     private static void OnActiveToolModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is PageCanvasControl control && e.NewValue is ToolMode mode)
+        if (d is PageCanvasControl control)
         {
-            control.UpdateEditingMode(mode);
+            control.UpdateEditingMode();
         }
     }
 
-    private void UpdateEditingMode(ToolMode mode)
+    private static void OnActiveEraserModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        InternalInkCanvas.EditingMode = mode switch
+        if (d is PageCanvasControl control)
         {
-            ToolMode.Pen or ToolMode.Highlighter => InkCanvasEditingMode.Ink,
-            ToolMode.Eraser => InkCanvasEditingMode.EraseByStroke,
-            ToolMode.Lasso => InkCanvasEditingMode.Select,
-            _ => InkCanvasEditingMode.None
-        };
+            control.UpdateEditingMode();
+        }
+    }
+
+    private static void OnEraserSizePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control)
+        {
+            control.RefreshEraserShape();
+        }
+    }
+
+    private void UpdateEditingMode()
+    {
+        if (ActiveToolMode is ToolMode.Pen or ToolMode.Highlighter)
+        {
+            InternalInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+            HideEraserCursor();
+        }
+        else if (ActiveToolMode == ToolMode.Eraser)
+        {
+            switch (ActiveEraserMode)
+            {
+                case EraserMode.Stroke:
+                    InternalInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
+                    HideEraserCursor();
+                    break;
+                case EraserMode.Point:
+                    InternalInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
+                    RefreshEraserShape();
+                    break;
+                case EraserMode.Object:
+                    InternalInkCanvas.EditingMode = InkCanvasEditingMode.None;
+                    HideEraserCursor();
+                    break;
+            }
+        }
+        else if (ActiveToolMode == ToolMode.Lasso)
+        {
+            InternalInkCanvas.EditingMode = InkCanvasEditingMode.Select;
+            HideEraserCursor();
+        }
+        else
+        {
+            InternalInkCanvas.EditingMode = InkCanvasEditingMode.None;
+            HideEraserCursor();
+        }
     }
 
     private void SyncStrokesFromProperty(StrokeCollection? newStrokes)

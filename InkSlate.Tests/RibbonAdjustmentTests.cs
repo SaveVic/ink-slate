@@ -863,5 +863,39 @@ public sealed class RibbonAdjustmentTests
             Assert.Equal("Untitled", mainVm.TitleDraft);
         });
     }
+
+    [Fact]
+    public void MainWindow_InitialDisplay_IsMaximized()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_F11Key_TogglesWindowState()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+
+            // Press F11 -> restores to Normal
+            var handled = window.HandleNavigationKey(Key.F11, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+
+            // Press F11 again -> Maximized
+            handled = window.HandleNavigationKey(Key.F11, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+        });
+    }
 }
 

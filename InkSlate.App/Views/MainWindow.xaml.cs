@@ -67,6 +67,13 @@ public partial class MainWindow : FluentWindow
                 ViewModel.ToggleViewModeCommand.Execute(null);
                 return true;
             }
+            else if (key == Key.F11)
+            {
+                WindowState = WindowState == WindowState.Maximized
+                    ? WindowState.Normal
+                    : WindowState.Maximized;
+                return true;
+            }
             else if (key == Key.V)
             {
                 ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pointer);

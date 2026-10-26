@@ -11,6 +11,7 @@
                  Height="800"
                  MinWidth="720"
                  MinHeight="480"
+                 WindowState="Maximized"
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Round"
                  ExtendsContentIntoTitleBar="True"

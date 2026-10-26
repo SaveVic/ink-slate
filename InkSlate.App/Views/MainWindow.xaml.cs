@@ -82,7 +82,7 @@ public partial class MainWindow : FluentWindow
             }
             else if (key == Key.I)
             {
-                ViewModel.InsertImageCommand.Execute(null);
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Image);
                 return true;
             }
         }

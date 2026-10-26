@@ -483,6 +483,8 @@ public sealed partial class MainViewModel : ObservableObject
     private static bool AreClose(PageDimensions a, PageDimensions b, double tolerance) =>
         Math.Abs(a.Width - b.Width) <= tolerance && Math.Abs(a.Height - b.Height) <= tolerance;
 
+    public Func<string?>? FilePicker { get; set; }
+
     [RelayCommand]
     public void InsertImage()
     {
@@ -491,16 +493,29 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        string? selectedPath = null;
+        if (FilePicker is not null)
         {
-            Title = "Insert Image",
-            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All Files (*.*)|*.*",
-            Multiselect = false
-        };
+            selectedPath = FilePicker();
+        }
+        else
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Insert Image",
+                Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All Files (*.*)|*.*",
+                Multiselect = false
+            };
 
-        if (dialog.ShowDialog() == true)
+            if (dialog.ShowDialog() == true)
+            {
+                selectedPath = dialog.FileName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedPath))
         {
-            InsertImageFile(dialog.FileName);
+            InsertImageFile(selectedPath);
         }
     }
 

@@ -1,6 +1,7 @@
 <ui:FluentWindow x:Class="InkSlate.App.Views.MainWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core"
                  xmlns:controls="clr-namespace:InkSlate.App.Controls"
@@ -21,7 +22,32 @@
                           ShadowDepth="3"
                           Direction="270"
                           Color="#000000"
-                          Opacity="0.22" />
+                          Opacity="0.22"
+                          po:Freeze="True" />
+
+        <DropShadowEffect x:Key="PageSheetShadow"
+                          BlurRadius="8"
+                          ShadowDepth="2"
+                          Direction="270"
+                          Color="#000000"
+                          Opacity="0.16"
+                          po:Freeze="True" />
+
+        <SolidColorBrush x:Key="PageBorderBrush"
+                         Color="#1A000000"
+                         po:Freeze="True" />
+
+        <DataTemplate x:Key="PageSheetDataTemplate">
+            <Border Width="{Binding Width}"
+                    Height="{Binding Height}"
+                    Margin="0,0,0,24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Background="{Binding BackgroundHex, FallbackValue=#FFFFFFFF}"
+                    BorderBrush="{StaticResource PageBorderBrush}"
+                    BorderThickness="1"
+                    Effect="{StaticResource PageSheetShadow}" />
+        </DataTemplate>
 
         <Style x:Key="ToolbarIconButtonStyle" TargetType="ui:Button">
             <Setter Property="Width" Value="34" />
@@ -67,7 +93,7 @@
 
         <!-- Main Workspace Layer -->
         <Grid Grid.Row="1">
-            <!-- Viewport Region (Canvas sheet bound to ActivePage dimensions) -->
+            <!-- Viewport Region (Dual View Modes: Consecutive & Separated) -->
             <Border x:Name="ViewportRegion"
                     Background="Transparent"
                     ClipToBounds="True">
@@ -77,15 +103,39 @@
                                            PreviousPageCommand="{Binding PreviousPageCommand}"
                                            NextPageCommand="{Binding NextPageCommand}"
                                            Background="Transparent">
-                    <Border Width="{Binding ActivePage.Width, FallbackValue=793.7}"
-                            Height="{Binding ActivePage.Height, FallbackValue=1122.5}"
-                            Margin="0,60,0,32"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Top"
-                            Background="#FFFFFFFF"
-                            BorderBrush="#1A000000"
-                            BorderThickness="1"
-                            Effect="{StaticResource FloatingSurfaceShadow}" />
+                    <Grid HorizontalAlignment="Center"
+                          VerticalAlignment="Top"
+                          Margin="0,60,0,32">
+                        <!-- Consecutive View: Virtualized Continuous Vertical Stack -->
+                        <ItemsControl x:Name="ConsecutivePagesControl"
+                                      ItemsSource="{Binding Pages}"
+                                      ItemTemplate="{StaticResource PageSheetDataTemplate}"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingPanel.ScrollUnit="Pixel"
+                                      VirtualizingPanel.CacheLength="1,1"
+                                      VirtualizingPanel.CacheLengthUnit="Page"
+                                      Visibility="{Binding IsConsecutiveView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel IsVirtualizing="True"
+                                                            VirtualizationMode="Recycling"
+                                                            ScrollUnit="Pixel"
+                                                            CacheLength="1,1"
+                                                            CacheLengthUnit="Page"
+                                                            HorizontalAlignment="Center" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <!-- Separated View: Single-Page Presentation Focus Mode -->
+                        <ContentControl x:Name="SeparatedPageHost"
+                                        Content="{Binding ActivePage}"
+                                        ContentTemplate="{StaticResource PageSheetDataTemplate}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Visibility="{Binding IsSeparatedView, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </Grid>
                 </controls:ZoomScrollViewer>
             </Border>
 

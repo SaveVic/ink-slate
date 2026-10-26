@@ -12,6 +12,7 @@ public sealed partial class MainViewModel : ObservableObject
     public const double MinZoomLevel = 0.25;
     public const double MaxZoomLevel = 5.0;
     public const double DefaultZoomLevel = 1.0;
+    public const double ConsecutivePageGap = 24.0;
 
     [ObservableProperty]
     private ObservableCollection<PageViewModel> _pages = [];
@@ -25,6 +26,8 @@ public sealed partial class MainViewModel : ObservableObject
     private PageViewModel? _activePage;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsConsecutiveView))]
+    [NotifyPropertyChangedFor(nameof(IsSeparatedView))]
     private ViewMode _currentViewMode = ViewMode.Consecutive;
 
     [ObservableProperty]
@@ -49,6 +52,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _hasDimensionInputError;
+
+    public event Action<PageViewModel>? PageNavigationScrollRequested;
 
     public MainViewModel()
         : this(new NoteDocument(), new UndoRedoManager())
@@ -85,11 +90,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         ActivePage = Pages[0];
+        ActivePage.Hydrate();
         SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
     }
 
     public NoteDocument Document { get; }
     public UndoRedoManager UndoRedo { get; }
+
+    public bool IsConsecutiveView => CurrentViewMode == ViewMode.Consecutive;
+    public bool IsSeparatedView => CurrentViewMode == ViewMode.Separated;
 
     public int ActivePageIndex => ActivePage is null ? 1 : Math.Max(1, Pages.IndexOf(ActivePage) + 1);
     public int TotalPages => Pages.Count;
@@ -105,17 +114,122 @@ public sealed partial class MainViewModel : ObservableObject
         ZoomLevel = safeZoom;
     }
 
+    public double GetPageVerticalOffset(PageViewModel page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var offset = 0.0;
+        foreach (var p in Pages)
+        {
+            if (ReferenceEquals(p, page))
+            {
+                return offset;
+            }
+            offset += p.Height + ConsecutivePageGap;
+        }
+        return offset;
+    }
+
+    public void UpdateVisiblePagesHydration(double verticalOffset, double viewportHeight)
+    {
+        if (CurrentViewMode == ViewMode.Separated)
+        {
+            foreach (var page in Pages)
+            {
+                if (ReferenceEquals(page, ActivePage))
+                {
+                    page.Hydrate();
+                }
+                else
+                {
+                    page.Dehydrate();
+                }
+            }
+            return;
+        }
+
+        var zoom = ZoomLevel > 0.0 ? ZoomLevel : 1.0;
+        var viewTop = verticalOffset / zoom;
+        var viewBottom = (verticalOffset + viewportHeight) / zoom;
+        var cacheMargin = viewportHeight > 0.0 ? viewportHeight / zoom : 1000.0;
+        var hydrateTop = viewTop - cacheMargin;
+        var hydrateBottom = viewBottom + cacheMargin;
+
+        var currentY = 0.0;
+        PageViewModel? mostVisiblePage = null;
+        var maxIntersection = -1.0;
+
+        foreach (var page in Pages)
+        {
+            var pageTop = currentY;
+            var pageBottom = pageTop + page.Height;
+            var intersectsCache = pageBottom >= hydrateTop && pageTop <= hydrateBottom;
+
+            if (intersectsCache)
+            {
+                page.Hydrate();
+            }
+            else
+            {
+                page.Dehydrate();
+            }
+
+            var intersectionStart = Math.Max(viewTop, pageTop);
+            var intersectionEnd = Math.Min(viewBottom, pageBottom);
+            var intersectionLength = Math.Max(0.0, intersectionEnd - intersectionStart);
+            if (intersectionLength > maxIntersection)
+            {
+                maxIntersection = intersectionLength;
+                mostVisiblePage = page;
+            }
+
+            currentY += page.Height + ConsecutivePageGap;
+        }
+
+        if (mostVisiblePage is not null && !ReferenceEquals(ActivePage, mostVisiblePage) && maxIntersection > 0.0)
+        {
+            ActivePage = mostVisiblePage;
+        }
+    }
+
     partial void OnActivePageChanged(PageViewModel? oldValue, PageViewModel? newValue)
     {
         if (oldValue is not null)
         {
             oldValue.IsActive = false;
+            if (CurrentViewMode == ViewMode.Separated)
+            {
+                oldValue.Dehydrate();
+            }
         }
 
         if (newValue is not null)
         {
             newValue.IsActive = true;
+            newValue.Hydrate();
             SyncDimensionInputsFromDimensions(new PageDimensions(newValue.Width, newValue.Height));
+        }
+    }
+
+    partial void OnCurrentViewModeChanged(ViewMode value)
+    {
+        if (value == ViewMode.Separated)
+        {
+            foreach (var page in Pages)
+            {
+                if (ReferenceEquals(page, ActivePage))
+                {
+                    page.Hydrate();
+                }
+                else
+                {
+                    page.Dehydrate();
+                }
+            }
+        }
+        else if (ActivePage is not null)
+        {
+            ActivePage.Hydrate();
+            PageNavigationScrollRequested?.Invoke(ActivePage);
         }
     }
 
@@ -157,6 +271,7 @@ public sealed partial class MainViewModel : ObservableObject
         Pages.Add(pageVm);
         ActivePage = pageVm;
         NotifyPageCountChanged();
+        PageNavigationScrollRequested?.Invoke(pageVm);
     }
 
     private bool CanDeletePage() => Pages.Count > 1 && ActivePage is not null;
@@ -187,6 +302,7 @@ public sealed partial class MainViewModel : ObservableObject
         var nextActiveIndex = Math.Clamp(index, 0, Pages.Count - 1);
         ActivePage = Pages[nextActiveIndex];
         NotifyPageCountChanged();
+        PageNavigationScrollRequested?.Invoke(ActivePage);
     }
 
     private bool CanGoNextPage() => ActivePage is not null && Pages.IndexOf(ActivePage) < Pages.Count - 1;
@@ -203,6 +319,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (index >= 0 && index + 1 < Pages.Count)
         {
             ActivePage = Pages[index + 1];
+            PageNavigationScrollRequested?.Invoke(ActivePage);
         }
     }
 
@@ -220,6 +337,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (index > 0)
         {
             ActivePage = Pages[index - 1];
+            PageNavigationScrollRequested?.Invoke(ActivePage);
         }
     }
 

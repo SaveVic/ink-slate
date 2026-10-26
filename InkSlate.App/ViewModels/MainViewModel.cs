@@ -69,8 +69,31 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoading;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPdfExportAll))]
+    [NotifyPropertyChangedFor(nameof(IsPdfExportCurrent))]
+    [NotifyPropertyChangedFor(nameof(IsPdfExportRange))]
+    private PdfExportPageMode _pdfExportMode = PdfExportPageMode.AllPages;
+
+    [ObservableProperty]
+    private string _pdfCustomRangeInput = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasPdfRangeError;
+
+    [ObservableProperty]
+    private bool _isPdfExportOpen;
+
+    [ObservableProperty]
+    private bool _isExportingPdf;
+
+    public bool IsPdfExportAll => PdfExportMode == PdfExportPageMode.AllPages;
+    public bool IsPdfExportCurrent => PdfExportMode == PdfExportPageMode.CurrentPage;
+    public bool IsPdfExportRange => PdfExportMode == PdfExportPageMode.CustomRange;
+
     public Func<string?>? FileOpenPicker { get; set; }
     public Func<string?>? FileSavePicker { get; set; }
+    public Func<string?>? FilePdfPicker { get; set; }
 
     public event Action<PageViewModel>? PageNavigationScrollRequested;
 
@@ -94,6 +117,7 @@ public sealed partial class MainViewModel : ObservableObject
                 (e.PropertyName == nameof(Toolbar.IsLassoOptionsOpen) && Toolbar.IsLassoOptionsOpen))
             {
                 IsPageSetupOpen = false;
+                IsPdfExportOpen = false;
             }
         };
 
@@ -393,9 +417,100 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsPenOptionsOpen = false;
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
+            IsPdfExportOpen = false;
         }
 
         IsPageSetupOpen = !IsPageSetupOpen;
+    }
+
+    [RelayCommand]
+    private void TogglePdfExport()
+    {
+        if (!IsPdfExportOpen)
+        {
+            Toolbar.IsPenOptionsOpen = false;
+            Toolbar.IsEraserOptionsOpen = false;
+            Toolbar.IsLassoOptionsOpen = false;
+            IsPageSetupOpen = false;
+            HasPdfRangeError = false;
+        }
+
+        IsPdfExportOpen = !IsPdfExportOpen;
+    }
+
+    [RelayCommand]
+    private void SelectPdfExportMode(PdfExportPageMode mode)
+    {
+        PdfExportMode = mode;
+        HasPdfRangeError = false;
+    }
+
+    partial void OnPdfCustomRangeInputChanged(string value)
+    {
+        if (HasPdfRangeError)
+        {
+            HasPdfRangeError = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task ExecutePdfExportAsync()
+    {
+        if (IsExportingPdf || Pages.Count == 0)
+        {
+            return;
+        }
+
+        var activeIndex = ActivePageIndex - 1;
+        if (!PageRangeParser.TryResolvePageIndices(PdfExportMode, Pages.Count, activeIndex, PdfCustomRangeInput, out var targetIndices))
+        {
+            HasPdfRangeError = true;
+            return;
+        }
+
+        HasPdfRangeError = false;
+
+        string? selectedPath = null;
+        if (FilePdfPicker is not null)
+        {
+            selectedPath = FilePdfPicker();
+        }
+        else
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Export PDF Document",
+                Filter = "PDF Document (*.pdf)|*.pdf|All Files (*.*)|*.*",
+                DefaultExt = ".pdf",
+                FileName = $"{DocumentTitle}.pdf"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                selectedPath = dialog.FileName;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        try
+        {
+            IsExportingPdf = true;
+            await PdfExportService.ExportToFileAsync(
+                Document,
+                targetIndices,
+                selectedPath,
+                strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes);
+
+            IsPdfExportOpen = false;
+        }
+        finally
+        {
+            IsExportingPdf = false;
+        }
     }
 
     [RelayCommand]

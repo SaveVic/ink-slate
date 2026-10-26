@@ -180,8 +180,17 @@
                         <ui:SymbolIcon Symbol="Save24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="ExportPdfButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding TogglePdfExportCommand}"
                                ToolTip="Export PDF (Ctrl+E)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPdfExportOpen}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="18" />
                     </ui:Button>
 
@@ -636,6 +645,98 @@
                                ToolTip="Apply Dimensions">
                         <ui:SymbolIcon Symbol="Checkmark24" FontSize="16" />
                     </ui:Button>
+                </StackPanel>
+            </Border>
+
+            <!-- Compact PDF Export Popover -->
+            <Border x:Name="PdfExportPopover"
+                    Margin="0,52,0,0"
+                    Padding="10,8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Effect="{StaticResource FloatingSurfaceShadow}"
+                    Visibility="{Binding IsPdfExportOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Export Mode Pills: All | Current | Range -->
+                    <ui:Button Content="All"
+                               Command="{Binding SelectPdfExportModeCommand}"
+                               CommandParameter="{x:Static models:PdfExportPageMode.AllPages}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPdfExportAll}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <ui:Button Content="Current"
+                               Command="{Binding SelectPdfExportModeCommand}"
+                               CommandParameter="{x:Static models:PdfExportPageMode.CurrentPage}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPdfExportCurrent}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <ui:Button Content="Range"
+                               Command="{Binding SelectPdfExportModeCommand}"
+                               CommandParameter="{x:Static models:PdfExportPageMode.CustomRange}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPdfExportRange}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <!-- Custom Range Input (revealed only in Range mode) -->
+                    <TextBox x:Name="PdfCustomRangeTextBox"
+                             Width="110"
+                             Height="28"
+                             Margin="4,0"
+                             Padding="6,2"
+                             VerticalContentAlignment="Center"
+                             FontSize="12"
+                             Text="{Binding PdfCustomRangeInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Visibility="{Binding IsPdfExportRange, Converter={StaticResource BooleanToVisibilityConverter}}"
+                             ToolTip="e.g. 1, 3, 5-8">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasPdfRangeError}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        <Setter Property="BorderThickness" Value="1.5" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+
+                    <!-- Primary Export Button -->
+                    <ui:Button x:Name="ExecuteExportButton"
+                               Height="28"
+                               Padding="12,2"
+                               Appearance="Primary"
+                               Content="Export"
+                               Command="{Binding ExecutePdfExportCommand}"
+                               ToolTip="Export vector PDF to file" />
                 </StackPanel>
             </Border>
 

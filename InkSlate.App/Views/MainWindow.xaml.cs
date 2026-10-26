@@ -106,6 +106,15 @@ public partial class MainWindow : FluentWindow
                 }
             }
 
+            if (key == Key.E)
+            {
+                if (ViewModel.TogglePdfExportCommand.CanExecute(null))
+                {
+                    ViewModel.TogglePdfExportCommand.Execute(null);
+                    return true;
+                }
+            }
+
             if (key == Key.Enter)
             {
                 ViewModel.AddPageCommand.Execute(null);

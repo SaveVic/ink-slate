@@ -75,7 +75,8 @@ public sealed partial class MainViewModel : ObservableObject
         Toolbar.PropertyChanged += (_, e) =>
         {
             if ((e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen) ||
-                (e.PropertyName == nameof(Toolbar.IsEraserOptionsOpen) && Toolbar.IsEraserOptionsOpen))
+                (e.PropertyName == nameof(Toolbar.IsEraserOptionsOpen) && Toolbar.IsEraserOptionsOpen) ||
+                (e.PropertyName == nameof(Toolbar.IsLassoOptionsOpen) && Toolbar.IsLassoOptionsOpen))
             {
                 IsPageSetupOpen = false;
             }
@@ -376,6 +377,7 @@ public sealed partial class MainViewModel : ObservableObject
             HasDimensionInputError = false;
             Toolbar.IsPenOptionsOpen = false;
             Toolbar.IsEraserOptionsOpen = false;
+            Toolbar.IsLassoOptionsOpen = false;
         }
 
         IsPageSetupOpen = !IsPageSetupOpen;

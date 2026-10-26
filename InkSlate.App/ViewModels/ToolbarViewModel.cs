@@ -69,6 +69,15 @@ public sealed partial class ToolbarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEraserOptionsOpen;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLassoStrokesOnly))]
+    [NotifyPropertyChangedFor(nameof(IsLassoElementsOnly))]
+    [NotifyPropertyChangedFor(nameof(IsLassoAllObjects))]
+    private LassoFilterMode _selectedLassoFilterMode = LassoFilterMode.AllObjects;
+
+    [ObservableProperty]
+    private bool _isLassoOptionsOpen;
+
     public ToolbarViewModel()
     {
         ColorSwatches = CreateFrozenSwatches();
@@ -106,6 +115,10 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public bool IsPointEraserMode => SelectedEraserMode == EraserMode.Point;
     public bool IsObjectEraserMode => SelectedEraserMode == EraserMode.Object;
 
+    public bool IsLassoStrokesOnly => SelectedLassoFilterMode == LassoFilterMode.StrokesOnly;
+    public bool IsLassoElementsOnly => SelectedLassoFilterMode == LassoFilterMode.ElementsOnly;
+    public bool IsLassoAllObjects => SelectedLassoFilterMode == LassoFilterMode.AllObjects;
+
     [RelayCommand]
     private void SelectTool(ToolMode mode)
     {
@@ -114,6 +127,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             if (mode is ToolMode.Pen or ToolMode.Highlighter)
             {
                 IsEraserOptionsOpen = false;
+                IsLassoOptionsOpen = false;
                 IsPenOptionsOpen = !IsPenOptionsOpen;
                 return;
             }
@@ -121,15 +135,32 @@ public sealed partial class ToolbarViewModel : ObservableObject
             if (mode == ToolMode.Eraser)
             {
                 IsPenOptionsOpen = false;
+                IsLassoOptionsOpen = false;
                 IsEraserOptionsOpen = !IsEraserOptionsOpen;
+                return;
+            }
+
+            if (mode == ToolMode.Lasso)
+            {
+                IsPenOptionsOpen = false;
+                IsEraserOptionsOpen = false;
+                IsLassoOptionsOpen = !IsLassoOptionsOpen;
                 return;
             }
         }
 
         IsPenOptionsOpen = false;
         IsEraserOptionsOpen = false;
+        IsLassoOptionsOpen = false;
         ActiveTool = mode;
         ApplyAttributesToSharedInstance();
+    }
+
+    [RelayCommand]
+    private void SelectLassoFilter(LassoFilterMode mode)
+    {
+        SelectedLassoFilterMode = mode;
+        IsLassoOptionsOpen = false;
     }
 
     [RelayCommand]

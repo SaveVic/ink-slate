@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using InkSlate.App.ViewModels;
+using InkSlate.Core.Models;
 using InkSlate.Core.Serialization;
 using InkSlate.Core.UndoRedo;
 
@@ -87,12 +89,43 @@ public sealed class CanvasElementContainer : ContentControl
             return;
         }
 
+        if (FindPageCanvasControl()?.ActiveToolMode == ToolMode.Lasso)
+        {
+            return;
+        }
+
         var layer = AdornerLayer.GetAdornerLayer(this);
         if (layer is not null)
         {
             _adorner = new CanvasElementAdorner(this, Element, UndoRedo, PageId);
             layer.Add(_adorner);
         }
+    }
+
+    public void RefreshAdornerAttachment()
+    {
+        if (Element.IsSelected && FindPageCanvasControl()?.ActiveToolMode is not ToolMode.Lasso)
+        {
+            AttachAdorner();
+        }
+        else
+        {
+            DetachAdorner();
+        }
+    }
+
+    private PageCanvasControl? FindPageCanvasControl()
+    {
+        DependencyObject? current = this;
+        while (current != null)
+        {
+            if (current is PageCanvasControl pcc)
+            {
+                return pcc;
+            }
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     private void DetachAdorner()
@@ -110,6 +143,11 @@ public sealed class CanvasElementContainer : ContentControl
         base.OnMouseLeftButtonDown(e);
 
         if (e.OriginalSource is TextBox or Wpf.Ui.Controls.TextBox)
+        {
+            return;
+        }
+
+        if (FindPageCanvasControl()?.ActiveToolMode == ToolMode.Lasso)
         {
             return;
         }

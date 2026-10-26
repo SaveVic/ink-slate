@@ -1,12 +1,24 @@
 using System.Windows;
+using System.Windows.Ink;
+using System.Windows.Input;
 using InkSlate.Core.Models.CanvasElements;
 
 namespace InkSlate.Core.UndoRedo;
 
+public sealed record ElementTransformChange(
+    CanvasElement Element,
+    Rect OldBounds,
+    Rect NewBounds,
+    Rect? OldCrop = null,
+    Rect? NewCrop = null);
+
+public sealed record StrokeTransformChange(
+    Stroke TargetStroke,
+    StylusPointCollection OldPoints,
+    StylusPointCollection NewPoints);
+
 public sealed class ElementTransformedOperation : IUndoableOperation
 {
-    private readonly CanvasElement _element;
-
     public ElementTransformedOperation(
         Guid pageId,
         CanvasElement element,
@@ -14,40 +26,61 @@ public sealed class ElementTransformedOperation : IUndoableOperation
         Rect newBounds,
         Rect? oldCrop = null,
         Rect? newCrop = null)
+        : this(pageId, [new ElementTransformChange(element, oldBounds, newBounds, oldCrop, newCrop)], null)
     {
-        ArgumentNullException.ThrowIfNull(element);
+    }
 
+    public ElementTransformedOperation(
+        Guid pageId,
+        IReadOnlyList<ElementTransformChange>? elementChanges,
+        IReadOnlyList<StrokeTransformChange>? strokeChanges = null)
+    {
         PageId = pageId;
-        _element = element;
-        ElementId = element.Id;
-        OldBounds = oldBounds;
-        NewBounds = newBounds;
-        OldCrop = oldCrop;
-        NewCrop = newCrop;
+        ElementChanges = elementChanges ?? [];
+        StrokeChanges = strokeChanges ?? [];
     }
 
     public Guid PageId { get; }
-    public Guid ElementId { get; }
-    public Rect OldBounds { get; }
-    public Rect NewBounds { get; }
-    public Rect? OldCrop { get; }
-    public Rect? NewCrop { get; }
+    public IReadOnlyList<ElementTransformChange> ElementChanges { get; }
+    public IReadOnlyList<StrokeTransformChange> StrokeChanges { get; }
+
+    public Guid ElementId => ElementChanges.Count > 0 ? ElementChanges[0].Element.Id : Guid.Empty;
+    public Rect OldBounds => ElementChanges.Count > 0 ? ElementChanges[0].OldBounds : Rect.Empty;
+    public Rect NewBounds => ElementChanges.Count > 0 ? ElementChanges[0].NewBounds : Rect.Empty;
+    public Rect? OldCrop => ElementChanges.Count > 0 ? ElementChanges[0].OldCrop : null;
+    public Rect? NewCrop => ElementChanges.Count > 0 ? ElementChanges[0].NewCrop : null;
 
     public void Undo()
     {
-        ApplyBounds(_element, OldBounds);
-        if (_element is ImageCanvasElement img && (OldCrop.HasValue || NewCrop.HasValue))
+        foreach (var change in ElementChanges)
         {
-            ApplyCrop(img, OldCrop);
+            ApplyBounds(change.Element, change.OldBounds);
+            if (change.Element is ImageCanvasElement img && (change.OldCrop.HasValue || change.NewCrop.HasValue))
+            {
+                ApplyCrop(img, change.OldCrop);
+            }
+        }
+
+        foreach (var change in StrokeChanges)
+        {
+            change.TargetStroke.StylusPoints = change.OldPoints.Clone();
         }
     }
 
     public void Redo()
     {
-        ApplyBounds(_element, NewBounds);
-        if (_element is ImageCanvasElement img && (OldCrop.HasValue || NewCrop.HasValue))
+        foreach (var change in ElementChanges)
         {
-            ApplyCrop(img, NewCrop);
+            ApplyBounds(change.Element, change.NewBounds);
+            if (change.Element is ImageCanvasElement img && (change.OldCrop.HasValue || change.NewCrop.HasValue))
+            {
+                ApplyCrop(img, change.NewCrop);
+            }
+        }
+
+        foreach (var change in StrokeChanges)
+        {
+            change.TargetStroke.StylusPoints = change.NewPoints.Clone();
         }
     }
 
@@ -77,4 +110,3 @@ public sealed class ElementTransformedOperation : IUndoableOperation
         }
     }
 }
-

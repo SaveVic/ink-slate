@@ -33,3 +33,10 @@ public enum ViewMode
     Consecutive = 0,
     Separated = 1
 }
+
+public enum PdfExportPageMode
+{
+    AllPages = 0,
+    CurrentPage = 1,
+    CustomRange = 2
+}

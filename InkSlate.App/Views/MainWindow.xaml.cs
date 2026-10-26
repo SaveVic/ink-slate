@@ -25,6 +25,8 @@ public partial class MainWindow : FluentWindow
         ViewportScrollViewer.SizeChanged += (_, _) =>
             ViewModel.UpdateVisiblePagesHydration(ViewportScrollViewer.VerticalOffset, ViewportScrollViewer.ViewportHeight);
 
+        ViewportScrollViewer.RequestBringIntoView += (_, e) => e.Handled = true;
+
         ViewModel.PageNavigationScrollRequested += OnPageNavigationScrollRequested;
     }
 

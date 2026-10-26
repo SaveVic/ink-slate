@@ -21,9 +21,165 @@
                           Opacity="0.25"
                           RenderingBias="Performance" />
 
+        <Style x:Key="MiniBarButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#FF1E1E1E" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#20000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InlineTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{Binding ForegroundHex, Converter={StaticResource HexToFrozenBrushConverter}}" />
+            <Setter Property="CaretBrush" Value="#FF1E1E1E" />
+            <Setter Property="BorderBrush" Value="#FF0078D4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- TextCanvasElementViewModel Template -->
         <DataTemplate DataType="{x:Type vm:TextCanvasElementViewModel}">
             <Grid Background="Transparent">
+                <!-- Floating Mini-Bar Pill (Visible when IsSelected or IsEditing) -->
+                <Border x:Name="MiniBarPill"
+                        Canvas.ZIndex="100"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="0,-36,0,0"
+                        Background="#FFFFFFFF"
+                        BorderBrush="#40000000"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        Padding="4,2"
+                        Visibility="Collapsed"
+                        Effect="{StaticResource MiniBarShadow}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Decrease Font Size -->
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding DecreaseFontSizeCommand}"
+                                Content="A-"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Width="26"
+                                Height="24"
+                                Margin="2,0"
+                                ToolTip="Decrease Font Size" />
+                        <!-- Increase Font Size -->
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding IncreaseFontSizeCommand}"
+                                Content="A+"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Width="26"
+                                Height="24"
+                                Margin="2,0"
+                                ToolTip="Increase Font Size" />
+
+                        <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
+
+                        <!-- Bold Button -->
+                        <Button x:Name="MiniBarBoldButton"
+                                Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding ToggleBoldCommand}"
+                                Content="B"
+                                FontWeight="Bold"
+                                Width="24"
+                                Height="24"
+                                Margin="1,0"
+                                ToolTip="Bold" />
+
+                        <!-- Italic Button -->
+                        <Button x:Name="MiniBarItalicButton"
+                                Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding ToggleItalicCommand}"
+                                Content="I"
+                                FontStyle="Italic"
+                                FontWeight="SemiBold"
+                                Width="24"
+                                Height="24"
+                                Margin="1,0"
+                                ToolTip="Italic" />
+
+                        <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
+
+                        <!-- Quick Color Swatches with Active Selection Mark -->
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding SetForegroundHexCommand}"
+                                CommandParameter="#FF1E1E1E"
+                                Width="20" Height="20" Margin="2,0" ToolTip="Charcoal Black">
+                            <Grid>
+                                <Border x:Name="MiniSwatchBlackRing" Width="18" Height="18" CornerRadius="9" BorderThickness="1.5" BorderBrush="Transparent" />
+                                <Ellipse Width="12" Height="12" Fill="#FF1E1E1E" />
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding SetForegroundHexCommand}"
+                                CommandParameter="#FF2563EB"
+                                Width="20" Height="20" Margin="2,0" ToolTip="Cobalt Blue">
+                            <Grid>
+                                <Border x:Name="MiniSwatchBlueRing" Width="18" Height="18" CornerRadius="9" BorderThickness="1.5" BorderBrush="Transparent" />
+                                <Ellipse Width="12" Height="12" Fill="#FF2563EB" />
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding SetForegroundHexCommand}"
+                                CommandParameter="#FFDC2626"
+                                Width="20" Height="20" Margin="2,0" ToolTip="Crimson Red">
+                            <Grid>
+                                <Border x:Name="MiniSwatchRedRing" Width="18" Height="18" CornerRadius="9" BorderThickness="1.5" BorderBrush="Transparent" />
+                                <Ellipse Width="12" Height="12" Fill="#FFDC2626" />
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource MiniBarButtonStyle}"
+                                Command="{Binding SetForegroundHexCommand}"
+                                CommandParameter="#FF16A34A"
+                                Width="20" Height="20" Margin="2,0" ToolTip="Emerald Green">
+                            <Grid>
+                                <Border x:Name="MiniSwatchGreenRing" Width="18" Height="18" CornerRadius="9" BorderThickness="1.5" BorderBrush="Transparent" />
+                                <Ellipse Width="12" Height="12" Fill="#FF16A34A" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
                 <!-- Static TextBlock (Unfocused / Read-only) -->
                 <TextBlock x:Name="StaticTextBlock"
                            Text="{Binding Text}"
@@ -35,136 +191,50 @@
                            HorizontalAlignment="Stretch"
                            IsHitTestVisible="False" />
 
-                <!-- Editable In-Place Container (Focused / Editing) -->
-                <Grid x:Name="EditingGrid" Visibility="Collapsed">
-                    <!-- Floating Mini-Bar Pill -->
-                    <Border Canvas.ZIndex="100"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Margin="0,-36,0,0"
-                            Background="#F0FFFFFF"
-                            BorderBrush="#40000000"
-                            BorderThickness="1"
-                            CornerRadius="14"
-                            Padding="4,2"
-                            Effect="{StaticResource MiniBarShadow}">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Decrease Font Size -->
-                            <Button Command="{Binding DecreaseFontSizeCommand}"
-                                    Content="A-"
-                                    FontSize="11"
-                                    FontWeight="SemiBold"
-                                    Width="26"
-                                    Height="24"
-                                    Margin="2,0"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    ToolTip="Decrease Font Size" />
-                            <!-- Increase Font Size -->
-                            <Button Command="{Binding IncreaseFontSizeCommand}"
-                                    Content="A+"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    Width="26"
-                                    Height="24"
-                                    Margin="2,0"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    ToolTip="Increase Font Size" />
-
-                            <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
-
-                            <!-- Bold Button -->
-                            <Button Command="{Binding ToggleBoldCommand}"
-                                    Content="B"
-                                    FontWeight="Bold"
-                                    Width="24"
-                                    Height="24"
-                                    Margin="1,0"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    ToolTip="Bold" />
-
-                            <!-- Italic Button -->
-                            <Button Command="{Binding ToggleItalicCommand}"
-                                    Content="I"
-                                    FontStyle="Italic"
-                                    FontWeight="SemiBold"
-                                    Width="24"
-                                    Height="24"
-                                    Margin="1,0"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    ToolTip="Italic" />
-
-                            <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
-
-                            <!-- Quick Color Swatches -->
-                            <Button Command="{Binding SetForegroundHexCommand}"
-                                    CommandParameter="#FF1E1E1E"
-                                    Width="16" Height="16" Margin="2,0" Padding="0"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Charcoal Black">
-                                <Ellipse Width="12" Height="12" Fill="#FF1E1E1E" />
-                            </Button>
-                            <Button Command="{Binding SetForegroundHexCommand}"
-                                    CommandParameter="#FF2563EB"
-                                    Width="16" Height="16" Margin="2,0" Padding="0"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Cobalt Blue">
-                                <Ellipse Width="12" Height="12" Fill="#FF2563EB" />
-                            </Button>
-                            <Button Command="{Binding SetForegroundHexCommand}"
-                                    CommandParameter="#FFDC2626"
-                                    Width="16" Height="16" Margin="2,0" Padding="0"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Crimson Red">
-                                <Ellipse Width="12" Height="12" Fill="#FFDC2626" />
-                            </Button>
-                            <Button Command="{Binding SetForegroundHexCommand}"
-                                    CommandParameter="#FF16A34A"
-                                    Width="16" Height="16" Margin="2,0" Padding="0"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Emerald Green">
-                                <Ellipse Width="12" Height="12" Fill="#FF16A34A" />
-                            </Button>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- In-Place TextBox with border -->
-                    <TextBox x:Name="InlineTextBox"
-                             Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="{Binding FontFamily}"
-                             FontSize="{Binding FontSize}"
-                             Foreground="{Binding ForegroundHex, Converter={StaticResource HexToFrozenBrushConverter}}"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Background="Transparent"
-                             BorderBrush="#FF0078D4"
-                             BorderThickness="1"
-                             Padding="2"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             IsVisibleChanged="OnInlineTextBoxIsVisibleChanged"
-                             LostFocus="OnInlineTextBoxLostFocus" />
-                </Grid>
+                <!-- In-Place TextBox with border -->
+                <TextBox x:Name="InlineTextBox"
+                         Style="{StaticResource InlineTextBoxStyle}"
+                         Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="{Binding FontFamily}"
+                         FontSize="{Binding FontSize}"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         VerticalAlignment="Stretch"
+                         HorizontalAlignment="Stretch"
+                         Visibility="Collapsed"
+                         IsVisibleChanged="OnInlineTextBoxIsVisibleChanged"
+                         LostFocus="OnInlineTextBoxLostFocus" />
             </Grid>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter TargetName="MiniBarPill" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter TargetName="MiniBarPill" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="StaticTextBlock" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="InlineTextBox" Property="Visibility" Value="Visible" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsBold}" Value="True">
                     <Setter TargetName="StaticTextBlock" Property="FontWeight" Value="Bold" />
                     <Setter TargetName="InlineTextBox" Property="FontWeight" Value="Bold" />
+                    <Setter TargetName="MiniBarBoldButton" Property="Background" Value="#250078D4" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsItalic}" Value="True">
                     <Setter TargetName="StaticTextBlock" Property="FontStyle" Value="Italic" />
                     <Setter TargetName="InlineTextBox" Property="FontStyle" Value="Italic" />
+                    <Setter TargetName="MiniBarItalicButton" Property="Background" Value="#250078D4" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                    <Setter TargetName="StaticTextBlock" Property="Visibility" Value="Collapsed" />
-                    <Setter TargetName="EditingGrid" Property="Visibility" Value="Visible" />
+                <DataTrigger Binding="{Binding ForegroundHex}" Value="#FF1E1E1E">
+                    <Setter TargetName="MiniSwatchBlackRing" Property="BorderBrush" Value="#FF0078D4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ForegroundHex}" Value="#FF2563EB">
+                    <Setter TargetName="MiniSwatchBlueRing" Property="BorderBrush" Value="#FF0078D4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ForegroundHex}" Value="#FFDC2626">
+                    <Setter TargetName="MiniSwatchRedRing" Property="BorderBrush" Value="#FF0078D4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ForegroundHex}" Value="#FF16A34A">
+                    <Setter TargetName="MiniSwatchGreenRing" Property="BorderBrush" Value="#FF0078D4" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>

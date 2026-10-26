@@ -73,7 +73,9 @@ public sealed partial class PageViewModel : ObservableObject
         _synchronizedElements = new SynchronizedCanvasElementList(this, model.Elements);
         foreach (var element in model.Elements)
         {
-            Elements.Add(CanvasElementViewModel.Create(element, AssetResolver));
+            var vm = CanvasElementViewModel.Create(element, AssetResolver);
+            vm.PropertyChanged += OnElementPropertyChanged;
+            Elements.Add(vm);
         }
 
         if (UndoRedo is not null)
@@ -111,6 +113,7 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         var vm = CanvasElementViewModel.Create(element, AssetResolver);
+        vm.PropertyChanged += OnElementPropertyChanged;
         Elements.Add(vm);
         Model.Elements.Add(element);
         IsDirty = true;
@@ -152,6 +155,7 @@ public sealed partial class PageViewModel : ObservableObject
             ImageSource = frozenBitmap
         };
 
+        vm.PropertyChanged += OnElementPropertyChanged;
         Elements.Add(vm);
         Model.Elements.Add(model);
         IsDirty = true;
@@ -173,6 +177,8 @@ public sealed partial class PageViewModel : ObservableObject
 
     public TextCanvasElementViewModel AddTextElement(Point position)
     {
+        SelectSingleElement(null);
+
         var model = new TextCanvasElement
         {
             X = Math.Max(0.0, position.X),
@@ -180,14 +186,23 @@ public sealed partial class PageViewModel : ObservableObject
             Width = 220.0,
             Height = 60.0,
             Text = string.Empty,
-            FontSize = 18.0,
-            ForegroundHex = Toolbar?.SelectedPenColorHex ?? "#FF1E1E1E"
+            FontSize = Toolbar?.SelectedTextFontSize ?? 18.0,
+            IsBold = Toolbar?.IsTextBold ?? false,
+            IsItalic = Toolbar?.IsTextItalic ?? false,
+            ForegroundHex = Toolbar?.SelectedTextColorHex ?? (Toolbar?.SelectedPenColorHex ?? "#FF1E1E1E")
         };
 
         AddElement(model);
         var vm = (TextCanvasElementViewModel)Elements.First(e => ReferenceEquals(e.Model, model));
         vm.IsSelected = true;
         vm.IsEditing = true;
+
+        if (Toolbar is not null)
+        {
+            Toolbar.ActiveTool = ToolMode.Pointer;
+            Toolbar.IsTextOptionsOpen = false;
+        }
+
         return vm;
     }
 
@@ -255,6 +270,7 @@ public sealed partial class PageViewModel : ObservableObject
             return;
         }
 
+        elementVm.PropertyChanged -= OnElementPropertyChanged;
         Elements.RemoveAt(index);
         Model.Elements.Remove(elementVm.Model);
         IsDirty = true;
@@ -262,6 +278,43 @@ public sealed partial class PageViewModel : ObservableObject
         if (UndoRedo is not null && !UndoRedo.IsReplaying)
         {
             UndoRedo.Record(new ElementRemovedOperation(Id, _synchronizedElements, elementVm.Model, index));
+        }
+    }
+
+    public void SelectSingleElement(CanvasElementViewModel? target)
+    {
+        foreach (var el in Elements)
+        {
+            if (!ReferenceEquals(el, target))
+            {
+                el.IsSelected = false;
+                el.IsEditing = false;
+            }
+        }
+
+        CleanupEmptyTextElements();
+    }
+
+    public void CleanupEmptyTextElements()
+    {
+        var emptyTexts = Elements.OfType<TextCanvasElementViewModel>()
+            .Where(t => !t.IsEditing && string.IsNullOrWhiteSpace(t.Text))
+            .ToList();
+
+        foreach (var empty in emptyTexts)
+        {
+            RemoveElement(empty);
+        }
+    }
+
+    private void OnElementPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is TextCanvasElementViewModel textVm && e.PropertyName == nameof(TextCanvasElementViewModel.IsEditing))
+        {
+            if (!textVm.IsEditing && string.IsNullOrWhiteSpace(textVm.Text))
+            {
+                RemoveElement(textVm);
+            }
         }
     }
 

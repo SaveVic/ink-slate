@@ -139,6 +139,8 @@ public partial class PageCanvasControl : UserControl
         RefreshEraserShape();
         UpdateEditingMode();
         AllowDrop = true;
+        RequestBringIntoView += (_, e) => e.Handled = true;
+        InternalInkCanvas.RequestBringIntoView += (_, e) => e.Handled = true;
     }
 
     public Guid PageId
@@ -355,12 +357,19 @@ public partial class PageCanvasControl : UserControl
         else if (ActiveToolMode is not ToolMode.Pen and not ToolMode.Highlighter)
         {
             var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
-            if (hit is null && PageElements is not null)
+            if (hit is null)
             {
-                foreach (var el in PageElements)
+                if (DataContext is PageViewModel pageVm)
                 {
-                    el.IsSelected = false;
-                    el.IsEditing = false;
+                    pageVm.SelectSingleElement(null);
+                }
+                else if (PageElements is not null)
+                {
+                    foreach (var el in PageElements)
+                    {
+                        el.IsSelected = false;
+                        el.IsEditing = false;
+                    }
                 }
             }
         }
@@ -753,8 +762,20 @@ public partial class PageCanvasControl : UserControl
     {
         if (sender is TextBox textBox && textBox.IsVisible)
         {
-            textBox.Focus();
-            textBox.CaretIndex = textBox.Text.Length;
+            textBox.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            {
+                textBox.Focus();
+                Keyboard.Focus(textBox);
+                textBox.CaretIndex = textBox.Text.Length;
+            });
+        }
+    }
+
+    public void SelectExclusive(CanvasElementViewModel? element)
+    {
+        if (DataContext is PageViewModel pageVm)
+        {
+            pageVm.SelectSingleElement(element);
         }
     }
 
@@ -772,7 +793,7 @@ public partial class PageCanvasControl : UserControl
                 }
                 else if (DataContext is PageViewModel pageVm)
                 {
-                    pageVm.RemoveElementCommand.Execute(textVm);
+                    pageVm.RemoveElement(textVm);
                 }
             }
         }

@@ -13,6 +13,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
     public const double DefaultZoom = 1.0;
     public const double ZoomInFactor = 1.1;
     public const double ZoomOutFactor = 0.9;
+    public const double WheelScrollStep = 24.0;
 
     public static readonly DependencyProperty ZoomLevelProperty =
         DependencyProperty.Register(
@@ -70,6 +71,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
         PanningMode = PanningMode.None;
         IsManipulationEnabled = true;
         Stylus.SetIsPressAndHoldEnabled(this, false);
+        RequestBringIntoView += (_, e) => e.Handled = true;
     }
 
     public double ZoomLevel
@@ -230,7 +232,18 @@ public sealed class ZoomScrollViewer : ScrollViewer
             return;
         }
 
-        base.OnPreviewMouseWheel(e);
+        var isShift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        var scrollDelta = -(e.Delta / 120.0) * WheelScrollStep;
+        if (isShift)
+        {
+            ApplyScrollOffsets(Math.Clamp(TargetHorizontalOffset + scrollDelta, 0.0, ScrollableWidth), TargetVerticalOffset);
+        }
+        else
+        {
+            ApplyScrollOffsets(TargetHorizontalOffset, Math.Clamp(TargetVerticalOffset + scrollDelta, 0.0, ScrollableHeight));
+        }
+
+        e.Handled = true;
     }
 
     protected override void OnPreviewMouseDown(MouseButtonEventArgs e)

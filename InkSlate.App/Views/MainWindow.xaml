@@ -5,6 +5,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core"
                  xmlns:controls="clr-namespace:InkSlate.App.Controls"
+                 xmlns:vm="clr-namespace:InkSlate.App.ViewModels"
                  Title="InkSlate"
                  Width="1280"
                  Height="800"
@@ -107,13 +108,43 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
 
+        <SolidColorBrush x:Key="ToolbarSolidBackgroundBrush" Color="#FF242424" po:Freeze="True" />
+        <SolidColorBrush x:Key="ToolbarSolidBorderBrush" Color="#FF3D3D3D" po:Freeze="True" />
+
+        <Style x:Key="SubtoolStackPanelStyle" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                    <Setter Property="Orientation" Value="Vertical" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SubtoolSeparatorStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ToolbarSolidBorderBrush}" />
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Margin" Value="6,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                    <Setter Property="Width" Value="24" />
+                    <Setter Property="Height" Value="1" />
+                    <Setter Property="Margin" Value="2,6" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PopoverContainerStyle" TargetType="Border">
             <Setter Property="Grid.Row" Value="0" />
             <Setter Property="Grid.RowSpan" Value="2" />
             <Setter Property="Grid.Column" Value="0" />
             <Setter Property="Grid.ColumnSpan" Value="2" />
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}" />
+            <Setter Property="Background" Value="{StaticResource ToolbarSolidBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ToolbarSolidBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Effect" Value="{StaticResource FloatingSurfaceShadow}" />
@@ -124,7 +155,7 @@
                 <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
                     <Setter Property="HorizontalAlignment" Value="Left" />
                     <Setter Property="VerticalAlignment" Value="Top" />
-                    <Setter Property="Margin" Value="52,70,0,0" />
+                    <Setter Property="Margin" Value="48,70,0,0" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.TopFloating}">
                     <Setter Property="HorizontalAlignment" Value="Center" />
@@ -285,8 +316,8 @@
                                 <Setter Property="Margin" Value="0,8,0,0" />
                                 <Setter Property="Padding" Value="6,4" />
                                 <Setter Property="Effect" Value="{StaticResource FloatingSurfaceShadow}" />
-                                <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}" />
+                                <Setter Property="Background" Value="{StaticResource ToolbarSolidBackgroundBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolbarSolidBorderBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -498,76 +529,102 @@
 
             <!-- Compact Pen Options Popover -->
             <Border x:Name="PenOptionsPopover"
-                    Style="{StaticResource PopoverContainerStyle}"
                     Padding="10,6"
                     Visibility="{Binding Toolbar.IsPenOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,140,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
                     <!-- 6 Curated Color Swatches (Zero text labels) -->
                     <ItemsControl x:Name="ColorSwatchesItemsControl"
                                   ItemsSource="{Binding Toolbar.ColorSwatches}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Width="24"
-                                        Height="24"
-                                        Margin="3,0"
+                            <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                <Button Width="26"
+                                        Height="26"
+                                        Margin="2"
                                         Padding="0"
                                         Cursor="Hand"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Command="{Binding DataContext.Toolbar.SelectColorSwatchCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
                                         CommandParameter="{Binding Hex}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Grid>
-                                                <Ellipse Width="20"
-                                                         Height="20"
-                                                         Fill="{Binding FrozenBrush}"
-                                                         Stroke="#33000000"
-                                                         StrokeThickness="1" />
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </Button.Template>
+                                    <Grid>
+                                        <Border x:Name="SelectionRing"
+                                                Width="24"
+                                                Height="24"
+                                                CornerRadius="12"
+                                                BorderThickness="2"
+                                                BorderBrush="Transparent" />
+                                        <Ellipse Width="18"
+                                                 Height="18"
+                                                 Fill="{Binding FrozenBrush}"
+                                                 Stroke="#33000000"
+                                                 StrokeThickness="1" />
+                                    </Grid>
                                 </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
                     <!-- 4 Thickness Dots (Zero text labels) -->
                     <ItemsControl x:Name="ThicknessDotsItemsControl"
                                   ItemsSource="{Binding Toolbar.ThicknessOptions}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:ThicknessOption}">
                                 <Button Width="26"
                                         Height="26"
-                                        Margin="3,0"
+                                        Margin="2"
                                         Padding="0"
                                         Cursor="Hand"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Command="{Binding DataContext.Toolbar.SelectPenThicknessCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
                                         CommandParameter="{Binding ThicknessDip}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Grid>
-                                                <Ellipse Width="{Binding DotDiameter}"
-                                                         Height="{Binding DotDiameter}"
-                                                         Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </Button.Template>
+                                    <Grid>
+                                        <Border x:Name="SelectionRing"
+                                                Width="24"
+                                                Height="24"
+                                                CornerRadius="12"
+                                                BorderThickness="2"
+                                                BorderBrush="Transparent" />
+                                        <Ellipse x:Name="Dot"
+                                                 Width="{Binding DotDiameter}"
+                                                 Height="{Binding DotDiameter}"
+                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Grid>
                                 </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -576,10 +633,20 @@
 
             <!-- Compact Eraser Options Popover -->
             <Border x:Name="EraserOptionsPopover"
-                    Style="{StaticResource PopoverContainerStyle}"
                     Padding="10,6"
                     Visibility="{Binding Toolbar.IsEraserOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,210,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
                     <!-- 3-Mode Segmented Eraser Buttons -->
                     <ui:Button x:Name="StrokeEraserModeButton"
                                Command="{Binding Toolbar.SelectEraserModeCommand}"
@@ -629,37 +696,46 @@
                         <ui:SymbolIcon Symbol="Shapes24" FontSize="18" />
                     </ui:Button>
 
-                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
                     <!-- 3 Eraser Size Dots (Zero text labels) -->
                     <ItemsControl x:Name="EraserSizeDotsItemsControl"
                                   ItemsSource="{Binding Toolbar.EraserSizeOptions}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:EraserSizeOption}">
                                 <Button Width="26"
                                         Height="26"
-                                        Margin="3,0"
+                                        Margin="2"
                                         Padding="0"
                                         Cursor="Hand"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Command="{Binding DataContext.Toolbar.SelectEraserSizeCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
                                         CommandParameter="{Binding SizeDip}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Grid>
-                                                <Ellipse Width="{Binding DotDiameter}"
-                                                         Height="{Binding DotDiameter}"
-                                                         Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </Button.Template>
+                                    <Grid>
+                                        <Border x:Name="SelectionRing"
+                                                Width="24"
+                                                Height="24"
+                                                CornerRadius="12"
+                                                BorderThickness="2"
+                                                BorderBrush="Transparent" />
+                                        <Ellipse x:Name="Dot"
+                                                 Width="{Binding DotDiameter}"
+                                                 Height="{Binding DotDiameter}"
+                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Grid>
                                 </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -668,10 +744,20 @@
 
             <!-- Compact Lasso Options Popover -->
             <Border x:Name="LassoOptionsPopover"
-                    Style="{StaticResource PopoverContainerStyle}"
                     Padding="6,4"
                     Visibility="{Binding Toolbar.IsLassoOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,245,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
                     <ui:Button x:Name="LassoStrokesOnlyButton"
                                Command="{Binding Toolbar.SelectLassoFilterCommand}"
                                CommandParameter="{x:Static models:LassoFilterMode.StrokesOnly}"
@@ -722,31 +808,215 @@
                 </StackPanel>
             </Border>
 
+            <!-- Compact Text Options Popover -->
+            <Border x:Name="TextOptionsPopover"
+                    Padding="8,6"
+                    Visibility="{Binding Toolbar.IsTextOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,280,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+                    <!-- Decrease Font Size -->
+                    <ui:Button Command="{Binding Toolbar.DecreaseTextFontSizeCommand}"
+                               Content="A-"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Width="28"
+                               Height="28"
+                               Margin="2,0"
+                               Padding="0"
+                               Appearance="Transparent"
+                               ToolTip="Decrease Font Size" />
+
+                    <!-- Font Size Display -->
+                    <TextBlock Text="{Binding Toolbar.SelectedTextFontSize, StringFormat={}{0:0}}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               Width="22"
+                               TextAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                    <!-- Increase Font Size -->
+                    <ui:Button Command="{Binding Toolbar.IncreaseTextFontSizeCommand}"
+                               Content="A+"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Width="28"
+                               Height="28"
+                               Margin="2,0"
+                               Padding="0"
+                               Appearance="Transparent"
+                               ToolTip="Increase Font Size" />
+
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+                    <!-- Bold Button -->
+                    <ui:Button Command="{Binding Toolbar.ToggleTextBoldCommand}"
+                               Content="B"
+                               FontWeight="Bold"
+                               Width="28"
+                               Height="28"
+                               Margin="2,0"
+                               Padding="0"
+                               ToolTip="Bold">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsTextBold}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <!-- Italic Button -->
+                    <ui:Button Command="{Binding Toolbar.ToggleTextItalicCommand}"
+                               Content="I"
+                               FontStyle="Italic"
+                               FontWeight="SemiBold"
+                               Width="28"
+                               Height="28"
+                               Margin="2,0"
+                               Padding="0"
+                               ToolTip="Italic">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsTextItalic}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+                    <!-- Curated Color Swatches for Text -->
+                    <ItemsControl ItemsSource="{Binding Toolbar.TextColorSwatches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                <Button Width="26"
+                                        Height="26"
+                                        Margin="2"
+                                        Padding="0"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.Toolbar.SelectTextColorCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                        CommandParameter="{Binding Hex}">
+                                    <Grid>
+                                        <Border x:Name="SelectionRing"
+                                                Width="24"
+                                                Height="24"
+                                                CornerRadius="12"
+                                                BorderThickness="2"
+                                                BorderBrush="Transparent" />
+                                        <Ellipse Width="18"
+                                                 Height="18"
+                                                 Fill="{Binding FrozenBrush}"
+                                                 Stroke="#33000000"
+                                                 StrokeThickness="1" />
+                                    </Grid>
+                                </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <!-- Compact Page Setup Popover -->
             <Border x:Name="PageSetupPopover"
-                    Style="{StaticResource PopoverContainerStyle}"
                     Padding="10,8"
                     Visibility="{Binding IsPageSetupOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,340,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
                     <!-- Presets -->
                     <ui:Button Content="A4"
-                               Style="{StaticResource PresetPillButtonStyle}"
                                Command="{Binding SelectPresetCommand}"
-                               CommandParameter="{x:Static models:PageDimensionPreset.A4}" />
+                               CommandParameter="{x:Static models:PageDimensionPreset.A4}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsA4Selected}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
                     <ui:Button Content="Letter"
-                               Style="{StaticResource PresetPillButtonStyle}"
                                Command="{Binding SelectPresetCommand}"
-                               CommandParameter="{x:Static models:PageDimensionPreset.Letter}" />
+                               CommandParameter="{x:Static models:PageDimensionPreset.Letter}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLetterSelected}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
                     <ui:Button Content="Legal"
-                               Style="{StaticResource PresetPillButtonStyle}"
                                Command="{Binding SelectPresetCommand}"
-                               CommandParameter="{x:Static models:PageDimensionPreset.Legal}" />
+                               CommandParameter="{x:Static models:PageDimensionPreset.Legal}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLegalSelected}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
                     <ui:Button Content="16:9"
-                               Style="{StaticResource PresetPillButtonStyle}"
                                Command="{Binding SelectPresetCommand}"
-                               CommandParameter="{x:Static models:PageDimensionPreset.Slide16x9}" />
+                               CommandParameter="{x:Static models:PageDimensionPreset.Slide16x9}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSlide16x9Selected}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
 
-                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
                     <!-- Dimensions Input: Width x Height -->
                     <TextBox x:Name="CustomWidthTextBox"
@@ -799,10 +1069,20 @@
 
             <!-- Compact PDF Export Popover -->
             <Border x:Name="PdfExportPopover"
-                    Style="{StaticResource PopoverContainerStyle}"
                     Padding="10,8"
                     Visibility="{Binding IsPdfExportOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="48,70,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
                     <!-- Export Mode Pills: All | Current | Range -->
                     <ui:Button Content="All"
                                Command="{Binding SelectPdfExportModeCommand}"
@@ -869,7 +1149,7 @@
                         </TextBox.Style>
                     </TextBox>
 
-                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
                     <!-- Primary Export Button -->
                     <ui:Button x:Name="ExecuteExportButton"
@@ -892,8 +1172,8 @@
                     Padding="10,4"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    Background="{StaticResource ToolbarSolidBackgroundBrush}"
+                    BorderBrush="{StaticResource ToolbarSolidBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12"
                     Effect="{StaticResource FloatingSurfaceShadow}">

@@ -236,4 +236,40 @@ public sealed class MainViewModelTests
                 && double.IsFinite(vm.ActivePage.Height);
         });
     }
+
+    [Fact]
+    public void PagePresetSelectionPropertiesAndPopoverMutualExclusion()
+    {
+        var vm = new MainViewModel();
+
+        Assert.True(vm.IsA4Selected);
+        Assert.False(vm.IsLetterSelected);
+        Assert.False(vm.IsLegalSelected);
+        Assert.False(vm.IsSlide16x9Selected);
+
+        vm.SelectPresetCommand.Execute(PageDimensionPreset.Letter);
+        Assert.False(vm.IsA4Selected);
+        Assert.True(vm.IsLetterSelected);
+
+        vm.SelectPresetCommand.Execute(PageDimensionPreset.Legal);
+        Assert.True(vm.IsLegalSelected);
+
+        vm.SelectPresetCommand.Execute(PageDimensionPreset.Slide16x9);
+        Assert.True(vm.IsSlide16x9Selected);
+
+        // Popover mutual exclusion
+        vm.Toolbar.IsTextOptionsOpen = true;
+        Assert.True(vm.Toolbar.IsTextOptionsOpen);
+
+        vm.TogglePageSetupCommand.Execute(null);
+        Assert.True(vm.IsPageSetupOpen);
+        Assert.False(vm.Toolbar.IsTextOptionsOpen);
+
+        vm.Toolbar.IsTextOptionsOpen = true;
+        Assert.False(vm.IsPageSetupOpen);
+
+        vm.TogglePdfExportCommand.Execute(null);
+        Assert.True(vm.IsPdfExportOpen);
+        Assert.False(vm.Toolbar.IsTextOptionsOpen);
+    }
 }

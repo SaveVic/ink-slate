@@ -42,6 +42,10 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _isPageSetupOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsA4Selected))]
+    [NotifyPropertyChangedFor(nameof(IsLetterSelected))]
+    [NotifyPropertyChangedFor(nameof(IsLegalSelected))]
+    [NotifyPropertyChangedFor(nameof(IsSlide16x9Selected))]
     private PageDimensionPreset _selectedPreset = PageDimensionPreset.A4;
 
     [ObservableProperty]
@@ -91,6 +95,11 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsPdfExportCurrent => PdfExportMode == PdfExportPageMode.CurrentPage;
     public bool IsPdfExportRange => PdfExportMode == PdfExportPageMode.CustomRange;
 
+    public bool IsA4Selected => SelectedPreset == PageDimensionPreset.A4;
+    public bool IsLetterSelected => SelectedPreset == PageDimensionPreset.Letter;
+    public bool IsLegalSelected => SelectedPreset == PageDimensionPreset.Legal;
+    public bool IsSlide16x9Selected => SelectedPreset == PageDimensionPreset.Slide16x9;
+
     public Func<string?>? FileOpenPicker { get; set; }
     public Func<string?>? FileSavePicker { get; set; }
     public Func<string?>? FilePdfPicker { get; set; }
@@ -114,10 +123,27 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if ((e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen) ||
                 (e.PropertyName == nameof(Toolbar.IsEraserOptionsOpen) && Toolbar.IsEraserOptionsOpen) ||
-                (e.PropertyName == nameof(Toolbar.IsLassoOptionsOpen) && Toolbar.IsLassoOptionsOpen))
+                (e.PropertyName == nameof(Toolbar.IsLassoOptionsOpen) && Toolbar.IsLassoOptionsOpen) ||
+                (e.PropertyName == nameof(Toolbar.IsTextOptionsOpen) && Toolbar.IsTextOptionsOpen))
             {
                 IsPageSetupOpen = false;
                 IsPdfExportOpen = false;
+            }
+
+            if (e.PropertyName is nameof(Toolbar.SelectedTextFontSize) or
+                nameof(Toolbar.IsTextBold) or
+                nameof(Toolbar.IsTextItalic) or
+                nameof(Toolbar.SelectedTextColorHex))
+            {
+                var activeText = ActivePage?.Elements.OfType<TextCanvasElementViewModel>()
+                    .FirstOrDefault(t => t.IsSelected || t.IsEditing);
+                if (activeText is not null)
+                {
+                    activeText.FontSize = Toolbar.SelectedTextFontSize;
+                    activeText.IsBold = Toolbar.IsTextBold;
+                    activeText.IsItalic = Toolbar.IsTextItalic;
+                    activeText.ForegroundHex = Toolbar.SelectedTextColorHex;
+                }
             }
         };
 
@@ -417,6 +443,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsPenOptionsOpen = false;
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
+            Toolbar.IsTextOptionsOpen = false;
             IsPdfExportOpen = false;
         }
 
@@ -431,6 +458,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsPenOptionsOpen = false;
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
+            Toolbar.IsTextOptionsOpen = false;
             IsPageSetupOpen = false;
             HasPdfRangeError = false;
         }

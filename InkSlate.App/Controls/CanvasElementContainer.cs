@@ -142,7 +142,7 @@ public sealed class CanvasElementContainer : ContentControl
     {
         base.OnMouseLeftButtonDown(e);
 
-        if (e.OriginalSource is TextBox or Wpf.Ui.Controls.TextBox)
+        if (e.OriginalSource is DependencyObject dep && (FindAncestor<Button>(dep) is not null || dep is TextBox || dep is Wpf.Ui.Controls.TextBox))
         {
             return;
         }
@@ -152,6 +152,8 @@ public sealed class CanvasElementContainer : ContentControl
             return;
         }
 
+        var pageCanvas = FindPageCanvasControl();
+        pageCanvas?.SelectExclusive(Element);
         Element.IsSelected = true;
 
         if (e.ClickCount == 2 && Element is TextCanvasElementViewModel textVm)
@@ -170,6 +172,19 @@ public sealed class CanvasElementContainer : ContentControl
             CaptureMouse();
             e.Handled = true;
         }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

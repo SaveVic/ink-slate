@@ -7,9 +7,50 @@ using InkSlate.Core.Models;
 
 namespace InkSlate.App.ViewModels;
 
-public sealed record ColorSwatchOption(string Hex, SolidColorBrush FrozenBrush);
-public sealed record ThicknessOption(double ThicknessDip, double DotDiameter);
-public sealed record EraserSizeOption(double SizeDip, double DotDiameter);
+public sealed partial class ColorSwatchOption : ObservableObject
+{
+    public ColorSwatchOption(string hex, SolidColorBrush frozenBrush)
+    {
+        Hex = hex;
+        FrozenBrush = frozenBrush;
+    }
+
+    public string Hex { get; }
+    public SolidColorBrush FrozenBrush { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public sealed partial class ThicknessOption : ObservableObject
+{
+    public ThicknessOption(double thicknessDip, double dotDiameter)
+    {
+        ThicknessDip = thicknessDip;
+        DotDiameter = dotDiameter;
+    }
+
+    public double ThicknessDip { get; }
+    public double DotDiameter { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public sealed partial class EraserSizeOption : ObservableObject
+{
+    public EraserSizeOption(double sizeDip, double dotDiameter)
+    {
+        SizeDip = sizeDip;
+        DotDiameter = dotDiameter;
+    }
+
+    public double SizeDip { get; }
+    public double DotDiameter { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
 
 public sealed partial class ToolbarViewModel : ObservableObject
 {
@@ -76,6 +117,24 @@ public sealed partial class ToolbarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEraserOptionsOpen;
 
+    public const double DefaultTextFontSize = 18.0;
+    public const string DefaultTextColorHex = "#FF1E1E1E";
+
+    [ObservableProperty]
+    private double _selectedTextFontSize = DefaultTextFontSize;
+
+    [ObservableProperty]
+    private bool _isTextBold;
+
+    [ObservableProperty]
+    private bool _isTextItalic;
+
+    [ObservableProperty]
+    private string _selectedTextColorHex = DefaultTextColorHex;
+
+    [ObservableProperty]
+    private bool _isTextOptionsOpen;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLassoStrokesOnly))]
     [NotifyPropertyChangedFor(nameof(IsLassoElementsOnly))]
@@ -88,6 +147,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public ToolbarViewModel()
     {
         ColorSwatches = CreateFrozenSwatches();
+        TextColorSwatches = CreateFrozenSwatches();
         ThicknessOptions =
         [
             new ThicknessOption(1.5, 6.0),
@@ -104,10 +164,12 @@ public sealed partial class ToolbarViewModel : ObservableObject
 
         CurrentDrawingAttributes = new DrawingAttributes();
         ApplyAttributesToSharedInstance();
+        UpdateSubtoolSelectionStates();
     }
 
     public DrawingAttributes CurrentDrawingAttributes { get; }
     public IReadOnlyList<ColorSwatchOption> ColorSwatches { get; }
+    public IReadOnlyList<ColorSwatchOption> TextColorSwatches { get; }
     public IReadOnlyList<ThicknessOption> ThicknessOptions { get; }
     public IReadOnlyList<EraserSizeOption> EraserSizeOptions { get; }
 
@@ -149,6 +211,14 @@ public sealed partial class ToolbarViewModel : ObservableObject
         Placement = placement;
     }
 
+    partial void OnActiveToolChanged(ToolMode value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedPenThicknessChanged(double value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedPenColorHexChanged(string value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedHighlighterColorHexChanged(string value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedTextColorHexChanged(string value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedEraserSizeChanged(double value) => UpdateSubtoolSelectionStates();
+    partial void OnSelectedEraserModeChanged(EraserMode value) => UpdateSubtoolSelectionStates();
+
     [RelayCommand]
     private void SelectTool(ToolMode mode)
     {
@@ -158,6 +228,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             {
                 IsEraserOptionsOpen = false;
                 IsLassoOptionsOpen = false;
+                IsTextOptionsOpen = false;
                 IsPenOptionsOpen = !IsPenOptionsOpen;
                 return;
             }
@@ -166,6 +237,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             {
                 IsPenOptionsOpen = false;
                 IsLassoOptionsOpen = false;
+                IsTextOptionsOpen = false;
                 IsEraserOptionsOpen = !IsEraserOptionsOpen;
                 return;
             }
@@ -174,7 +246,17 @@ public sealed partial class ToolbarViewModel : ObservableObject
             {
                 IsPenOptionsOpen = false;
                 IsEraserOptionsOpen = false;
+                IsTextOptionsOpen = false;
                 IsLassoOptionsOpen = !IsLassoOptionsOpen;
+                return;
+            }
+
+            if (mode == ToolMode.Text)
+            {
+                IsPenOptionsOpen = false;
+                IsEraserOptionsOpen = false;
+                IsLassoOptionsOpen = false;
+                IsTextOptionsOpen = !IsTextOptionsOpen;
                 return;
             }
         }
@@ -182,8 +264,69 @@ public sealed partial class ToolbarViewModel : ObservableObject
         IsPenOptionsOpen = false;
         IsEraserOptionsOpen = false;
         IsLassoOptionsOpen = false;
+        IsTextOptionsOpen = false;
         ActiveTool = mode;
         ApplyAttributesToSharedInstance();
+        UpdateSubtoolSelectionStates();
+    }
+
+    [RelayCommand]
+    private void IncreaseTextFontSize()
+    {
+        SelectedTextFontSize = Math.Clamp(SelectedTextFontSize + 2.0, 8.0, 96.0);
+    }
+
+    [RelayCommand]
+    private void DecreaseTextFontSize()
+    {
+        SelectedTextFontSize = Math.Clamp(SelectedTextFontSize - 2.0, 8.0, 96.0);
+    }
+
+    [RelayCommand]
+    private void ToggleTextBold()
+    {
+        IsTextBold = !IsTextBold;
+    }
+
+    [RelayCommand]
+    private void ToggleTextItalic()
+    {
+        IsTextItalic = !IsTextItalic;
+    }
+
+    [RelayCommand]
+    private void SelectTextColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return;
+        }
+
+        SelectedTextColorHex = hex;
+    }
+
+    public void UpdateSubtoolSelectionStates()
+    {
+        var activeHex = ActiveTool == ToolMode.Highlighter ? SelectedHighlighterColorHex : SelectedPenColorHex;
+        foreach (var swatch in ColorSwatches)
+        {
+            swatch.IsSelected = string.Equals(swatch.Hex, activeHex, StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var swatch in TextColorSwatches)
+        {
+            swatch.IsSelected = string.Equals(swatch.Hex, SelectedTextColorHex, StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var opt in ThicknessOptions)
+        {
+            opt.IsSelected = Math.Abs(opt.ThicknessDip - SelectedPenThickness) < 0.05;
+        }
+
+        foreach (var eraser in EraserSizeOptions)
+        {
+            eraser.IsSelected = SelectedEraserMode == EraserMode.Point && Math.Abs(eraser.SizeDip - SelectedEraserSize) < 0.05;
+        }
     }
 
     [RelayCommand]

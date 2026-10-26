@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using InkSlate.App.ViewModels;
+using InkSlate.Core.Models;
 using Wpf.Ui.Controls;
 
 namespace InkSlate.App.Views;
@@ -52,6 +53,36 @@ public partial class MainWindow : FluentWindow
             else if (key == Key.F5)
             {
                 ViewModel.ToggleViewModeCommand.Execute(null);
+                return true;
+            }
+            else if (key == Key.P)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pen);
+                return true;
+            }
+            else if (key == Key.H)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Highlighter);
+                return true;
+            }
+            else if (key == Key.E)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Eraser);
+                return true;
+            }
+            else if (key == Key.L)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Lasso);
+                return true;
+            }
+            else if (key == Key.T)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Text);
+                return true;
+            }
+            else if (key == Key.I)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Image);
                 return true;
             }
         }

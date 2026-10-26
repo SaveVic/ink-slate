@@ -37,11 +37,12 @@ public sealed partial class PageViewModel : ObservableObject
     [ObservableProperty]
     private StrokeCollection? _strokes;
 
-    public PageViewModel(NotePage model, UndoRedoManager? undoRedoManager = null)
+    public PageViewModel(NotePage model, UndoRedoManager? undoRedoManager = null, ToolbarViewModel? toolbar = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         Model = model;
         UndoRedo = undoRedoManager;
+        Toolbar = toolbar;
         _pageNumber = model.PageNumber;
         _width = model.Width;
         _height = model.Height;
@@ -50,6 +51,7 @@ public sealed partial class PageViewModel : ObservableObject
 
     public NotePage Model { get; }
     public UndoRedoManager? UndoRedo { get; }
+    public ToolbarViewModel? Toolbar { get; }
     public Guid Id => Model.Id;
     public int CompressedIsfByteCount => _compressedIsfBytes?.Length ?? 0;
 

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
+using InkSlate.Core.Models;
 using InkSlate.Core.UndoRedo;
 
 namespace InkSlate.App.Controls;
@@ -41,6 +42,20 @@ public partial class PageCanvasControl : UserControl
             new FrameworkPropertyMetadata(
                 false,
                 FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty InkDrawingAttributesProperty =
+        DependencyProperty.Register(
+            nameof(InkDrawingAttributes),
+            typeof(DrawingAttributes),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(null, OnInkDrawingAttributesPropertyChanged));
+
+    public static readonly DependencyProperty ActiveToolModeProperty =
+        DependencyProperty.Register(
+            nameof(ActiveToolMode),
+            typeof(ToolMode),
+            typeof(PageCanvasControl),
+            new PropertyMetadata(ToolMode.Pen, OnActiveToolModePropertyChanged));
 
     private bool _isSyncingStrokes;
     private StrokeCollection? _subscribedStrokes;
@@ -96,6 +111,18 @@ public partial class PageCanvasControl : UserControl
         set => SetValue(IsPageDirtyProperty, value);
     }
 
+    public DrawingAttributes? InkDrawingAttributes
+    {
+        get => (DrawingAttributes?)GetValue(InkDrawingAttributesProperty);
+        set => SetValue(InkDrawingAttributesProperty, value);
+    }
+
+    public ToolMode ActiveToolMode
+    {
+        get => (ToolMode)GetValue(ActiveToolModeProperty);
+        set => SetValue(ActiveToolModeProperty, value);
+    }
+
     public InkCanvas InkSurface => InternalInkCanvas;
 
     private static void OnPageStrokesPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -104,6 +131,33 @@ public partial class PageCanvasControl : UserControl
         {
             control.SyncStrokesFromProperty(e.NewValue as StrokeCollection);
         }
+    }
+
+    private static void OnInkDrawingAttributesPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control && e.NewValue is DrawingAttributes attributes)
+        {
+            control.InternalInkCanvas.DefaultDrawingAttributes = attributes;
+        }
+    }
+
+    private static void OnActiveToolModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control && e.NewValue is ToolMode mode)
+        {
+            control.UpdateEditingMode(mode);
+        }
+    }
+
+    private void UpdateEditingMode(ToolMode mode)
+    {
+        InternalInkCanvas.EditingMode = mode switch
+        {
+            ToolMode.Pen or ToolMode.Highlighter => InkCanvasEditingMode.Ink,
+            ToolMode.Eraser => InkCanvasEditingMode.EraseByStroke,
+            ToolMode.Lasso => InkCanvasEditingMode.Select,
+            _ => InkCanvasEditingMode.None
+        };
     }
 
     private void SyncStrokesFromProperty(StrokeCollection? newStrokes)

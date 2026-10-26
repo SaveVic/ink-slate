@@ -56,17 +56,26 @@ public sealed partial class MainViewModel : ObservableObject
     public event Action<PageViewModel>? PageNavigationScrollRequested;
 
     public MainViewModel()
-        : this(new NoteDocument(), new UndoRedoManager())
+        : this(new NoteDocument(), new UndoRedoManager(), new ToolbarViewModel())
     {
     }
 
-    public MainViewModel(NoteDocument document, UndoRedoManager undoRedoManager)
+    public MainViewModel(NoteDocument document, UndoRedoManager undoRedoManager, ToolbarViewModel? toolbar = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(undoRedoManager);
 
         Document = document;
         UndoRedo = undoRedoManager;
+        Toolbar = toolbar ?? new ToolbarViewModel();
+        Toolbar.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen)
+            {
+                IsPageSetupOpen = false;
+            }
+        };
+
         UndoRedo.StateChanged += (_, _) =>
         {
             UndoCommand.NotifyCanExecuteChanged();
@@ -86,7 +95,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var page in document.Pages)
         {
-            Pages.Add(new PageViewModel(page, UndoRedo));
+            Pages.Add(new PageViewModel(page, UndoRedo, Toolbar));
         }
 
         ActivePage = Pages[0];
@@ -96,6 +105,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public NoteDocument Document { get; }
     public UndoRedoManager UndoRedo { get; }
+    public ToolbarViewModel Toolbar { get; }
 
     public bool IsConsecutiveView => CurrentViewMode == ViewMode.Consecutive;
     public bool IsSeparatedView => CurrentViewMode == ViewMode.Separated;
@@ -267,7 +277,7 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         Document.Pages.Add(model);
-        var pageVm = new PageViewModel(model, UndoRedo);
+        var pageVm = new PageViewModel(model, UndoRedo, Toolbar);
         Pages.Add(pageVm);
         ActivePage = pageVm;
         NotifyPageCountChanged();
@@ -359,6 +369,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
             HasDimensionInputError = false;
+            Toolbar.IsPenOptionsOpen = false;
         }
 
         IsPageSetupOpen = !IsPageSetupOpen;

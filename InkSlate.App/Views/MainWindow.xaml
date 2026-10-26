@@ -51,7 +51,9 @@
                 <controls:PageCanvasControl PageId="{Binding Id}"
                                             PageStrokes="{Binding Strokes, Mode=TwoWay}"
                                             UndoRedoManager="{Binding UndoRedo}"
-                                            IsPageDirty="{Binding IsDirty, Mode=TwoWay}" />
+                                            IsPageDirty="{Binding IsDirty, Mode=TwoWay}"
+                                            InkDrawingAttributes="{Binding Toolbar.CurrentDrawingAttributes}"
+                                            ActiveToolMode="{Binding Toolbar.ActiveTool, FallbackValue={x:Static models:ToolMode.Pen}}" />
             </Border>
         </DataTemplate>
 
@@ -106,6 +108,7 @@
                 <controls:ZoomScrollViewer x:Name="ViewportScrollViewer"
                                            ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                            CurrentViewMode="{Binding CurrentViewMode}"
+                                           ActiveToolMode="{Binding Toolbar.ActiveTool}"
                                            PreviousPageCommand="{Binding PreviousPageCommand}"
                                            NextPageCommand="{Binding NextPageCommand}"
                                            Background="Transparent">
@@ -179,34 +182,93 @@
 
                     <!-- Canvas Tools -->
                     <ui:Button x:Name="PenToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
-                               Appearance="Primary"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Pen}"
                                ToolTip="Pen (P)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsPenToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Pen24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="HighlighterToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Highlighter}"
                                ToolTip="Highlighter (H)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsHighlighterToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Highlight24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="EraserToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Eraser}"
                                ToolTip="Eraser (E)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsEraserToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Eraser24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="LassoToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Lasso}"
                                ToolTip="Lasso (L)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsLassoToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Lasso24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="TextToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Text}"
                                ToolTip="Text (T)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsTextToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="TextFont24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="ImageToolButton"
-                               Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding Toolbar.SelectToolCommand}"
+                               CommandParameter="{x:Static models:ToolMode.Image}"
                                ToolTip="Image (I)">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Toolbar.IsImageToolActive}" Value="True">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Image24" FontSize="18" />
                     </ui:Button>
 
@@ -247,6 +309,91 @@
                                ToolTip="Toggle View: Consecutive / Separated (F5)">
                         <ui:SymbolIcon Symbol="SlideMultiple24" FontSize="18" />
                     </ui:Button>
+                </StackPanel>
+            </Border>
+
+            <!-- Compact Pen Options Popover -->
+            <Border x:Name="PenOptionsPopover"
+                    Margin="0,52,0,0"
+                    Padding="10,6"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Effect="{StaticResource FloatingSurfaceShadow}"
+                    Visibility="{Binding Toolbar.IsPenOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 6 Curated Color Swatches (Zero text labels) -->
+                    <ItemsControl x:Name="ColorSwatchesItemsControl"
+                                  ItemsSource="{Binding Toolbar.ColorSwatches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="24"
+                                        Height="24"
+                                        Margin="3,0"
+                                        Padding="0"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.Toolbar.SelectColorSwatchCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                        CommandParameter="{Binding Hex}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Grid>
+                                                <Ellipse Width="20"
+                                                         Height="20"
+                                                         Fill="{Binding FrozenBrush}"
+                                                         Stroke="#33000000"
+                                                         StrokeThickness="1" />
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Style="{StaticResource ToolbarSeparatorStyle}" />
+
+                    <!-- 4 Thickness Dots (Zero text labels) -->
+                    <ItemsControl x:Name="ThicknessDotsItemsControl"
+                                  ItemsSource="{Binding Toolbar.ThicknessOptions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="26"
+                                        Height="26"
+                                        Margin="3,0"
+                                        Padding="0"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.Toolbar.SelectPenThicknessCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                        CommandParameter="{Binding ThicknessDip}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Grid>
+                                                <Ellipse Width="{Binding DotDiameter}"
+                                                         Height="{Binding DotDiameter}"
+                                                         Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

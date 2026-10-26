@@ -365,7 +365,7 @@ public partial class PageCanvasControl : UserControl
                 }
                 else if (PageElements is not null)
                 {
-                    foreach (var el in PageElements)
+                    foreach (var el in PageElements.ToList())
                     {
                         el.IsSelected = false;
                         el.IsEditing = false;

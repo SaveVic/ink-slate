@@ -283,7 +283,8 @@ public sealed partial class PageViewModel : ObservableObject
 
     public void SelectSingleElement(CanvasElementViewModel? target)
     {
-        foreach (var el in Elements)
+        var elementsSnapshot = Elements.ToList();
+        foreach (var el in elementsSnapshot)
         {
             if (!ReferenceEquals(el, target))
             {
@@ -313,7 +314,21 @@ public sealed partial class PageViewModel : ObservableObject
         {
             if (!textVm.IsEditing && string.IsNullOrWhiteSpace(textVm.Text))
             {
-                RemoveElement(textVm);
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher is not null && !dispatcher.CheckAccess())
+                {
+                    dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+                    {
+                        if (!textVm.IsEditing && string.IsNullOrWhiteSpace(textVm.Text))
+                        {
+                            RemoveElement(textVm);
+                        }
+                    });
+                }
+                else
+                {
+                    RemoveElement(textVm);
+                }
             }
         }
     }

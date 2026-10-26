@@ -264,6 +264,27 @@ public sealed class RibbonAdjustmentTests
     }
 
     [Fact]
+    public void SelectSingleElement_WhileEditingEmptyTextBox_SafelyDeselectsWithoutConcurrentModificationException()
+    {
+        RunInSta(() =>
+        {
+            var toolbar = new ToolbarViewModel();
+            var page = new NotePage();
+            var pageVm = new PageViewModel(page, null, toolbar);
+
+            var textVm = pageVm.AddTextElement(new Point(50, 50));
+            Assert.True(textVm.IsEditing);
+            Assert.Single(pageVm.Elements);
+
+            // Simulating clicking on empty canvas while text box is currently being edited
+            pageVm.SelectSingleElement(null);
+
+            // No exception thrown, and empty text is cleaned up
+            Assert.Empty(pageVm.Elements);
+        });
+    }
+
+    [Fact]
     public void NonEmptyTextBox_PersistsWhenEditingEnds()
     {
         RunInSta(() =>

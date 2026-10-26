@@ -1,5 +1,8 @@
 using System.Windows;
+using InkSlate.App.ViewModels;
 using InkSlate.App.Views;
+using InkSlate.Core.Models;
+using InkSlate.Core.UndoRedo;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace InkSlate.App;
@@ -28,6 +31,9 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        services.AddSingleton<NoteDocument>();
+        services.AddSingleton<UndoRedoManager>();
+        services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -16,7 +17,39 @@ public sealed partial class MainViewModel : ObservableObject
     public const double MinZoomLevel = 0.25;
     public const double MaxZoomLevel = 5.0;
     public const double DefaultZoomLevel = 1.0;
-    public const double ConsecutivePageGap = 24.0;
+    public const double ConsecutivePageGap = 56.0;
+
+    public Func<string, string, bool> ConfirmDialog { get; set; } = DefaultConfirmDialog;
+    public Action<string, string> InfoDialog { get; set; } = DefaultInfoDialog;
+
+    private static bool DefaultConfirmDialog(string message, string title)
+    {
+        if (System.Windows.Application.Current is null)
+        {
+            return true;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            message,
+            title,
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+        return result == System.Windows.MessageBoxResult.Yes;
+    }
+
+    private static void DefaultInfoDialog(string message, string title)
+    {
+        if (System.Windows.Application.Current is null)
+        {
+            return;
+        }
+
+        System.Windows.MessageBox.Show(
+            message,
+            title,
+            System.Windows.MessageBoxButton.OK,
+            System.Windows.MessageBoxImage.Information);
+    }
 
     [ObservableProperty]
     private ObservableCollection<PageViewModel> _pages = [];
@@ -27,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeletePageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSpecificPageCommand))]
     private PageViewModel? _activePage;
 
     [ObservableProperty]
@@ -62,10 +96,87 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _hasDimensionInputError;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSaved))]
+    [NotifyPropertyChangedFor(nameof(SaveStatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(WindowTitleDisplay))]
     private string? _currentFilePath;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WindowTitleDisplay))]
     private string _documentTitle = NoteDocument.DefaultTitle;
+
+    [ObservableProperty]
+    private bool _isEditingTitle;
+
+    [ObservableProperty]
+    private string _titleDraft = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSaved))]
+    [NotifyPropertyChangedFor(nameof(SaveStatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(WindowTitleDisplay))]
+    private bool _isDirty;
+
+    public bool IsSaved => !IsDirty && !string.IsNullOrWhiteSpace(CurrentFilePath);
+
+    public string SaveStatusDisplay => IsSaved ? "Saved" : (string.IsNullOrWhiteSpace(CurrentFilePath) && !IsDirty ? "Not saved" : "Unsaved");
+
+    public string WindowTitleDisplay =>
+        IsSaved
+            ? $"{DocumentTitle} - InkSlate"
+            : $"{DocumentTitle} • - InkSlate";
+
+    partial void OnDocumentTitleChanged(string? oldValue, string newValue)
+    {
+        Document.Title = newValue;
+        if (oldValue is not null && !string.Equals(oldValue, newValue, StringComparison.Ordinal))
+        {
+            IsDirty = true;
+        }
+    }
+
+    [RelayCommand]
+    public void BeginEditTitle()
+    {
+        TitleDraft = DocumentTitle;
+        IsEditingTitle = true;
+    }
+
+    [RelayCommand]
+    public void CommitTitleEdit()
+    {
+        if (!IsEditingTitle)
+        {
+            return;
+        }
+
+        var trimmed = TitleDraft?.Trim();
+        var newTitle = string.IsNullOrWhiteSpace(trimmed) ? NoteDocument.DefaultTitle : trimmed;
+
+        if (!string.Equals(DocumentTitle, newTitle, StringComparison.Ordinal))
+        {
+            DocumentTitle = newTitle;
+            IsDirty = true;
+        }
+
+        IsEditingTitle = false;
+    }
+
+    [RelayCommand]
+    public void CancelTitleEdit()
+    {
+        TitleDraft = DocumentTitle;
+        IsEditingTitle = false;
+    }
+
+    public string GetSafeDocumentTitleForFileName()
+    {
+        var rawName = !string.IsNullOrWhiteSpace(DocumentTitle) ? DocumentTitle : NoteDocument.DefaultTitle;
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var safeChars = rawName.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray();
+        var safeName = new string(safeChars).Trim();
+        return string.IsNullOrWhiteSpace(safeName) ? NoteDocument.DefaultTitle : safeName;
+    }
 
     [ObservableProperty]
     private bool _isSaving;
@@ -151,6 +262,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             UndoCommand.NotifyCanExecuteChanged();
             RedoCommand.NotifyCanExecuteChanged();
+            if (UndoRedo.UndoCount > 0 || UndoRedo.RedoCount > 0)
+            {
+                IsDirty = true;
+            }
         };
 
         if (document.Pages.Count == 0)
@@ -166,7 +281,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var page in document.Pages)
         {
-            Pages.Add(new PageViewModel(page, UndoRedo, Toolbar, Document.Assets.GetValueOrDefault, (k, b) => Document.Assets[k] = b));
+            var pageVm = new PageViewModel(page, UndoRedo, Toolbar, Document.Assets.GetValueOrDefault, (k, b) => Document.Assets[k] = b);
+            HookPage(pageVm);
+            Pages.Add(pageVm);
         }
 
         ActivePage = Pages[0];
@@ -183,6 +300,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public int ActivePageIndex => ActivePage is null ? 1 : Math.Max(1, Pages.IndexOf(ActivePage) + 1);
     public int TotalPages => Pages.Count;
+    public bool CanDeletePages => Pages.Count > 1;
     public string PageIndicatorDisplay => $"{ActivePageIndex} / {Math.Max(1, Pages.Count)}";
     public string ZoomPercentageDisplay => string.Create(CultureInfo.InvariantCulture, $"{Math.Round(ZoomLevel * 100.0):0}%");
     public string DimensionUnitLabel => IsMillimeterUnit ? "mm" : "px";
@@ -349,8 +467,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         Document.Pages.Add(model);
         var pageVm = new PageViewModel(model, UndoRedo, Toolbar, Document.Assets.GetValueOrDefault, (k, b) => Document.Assets[k] = b);
+        HookPage(pageVm);
         Pages.Add(pageVm);
         ActivePage = pageVm;
+        IsDirty = true;
         NotifyPageCountChanged();
         PageNavigationScrollRequested?.Invoke(pageVm);
     }
@@ -369,30 +489,69 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanDeletePage))]
     private void DeletePage()
     {
-        if (Pages.Count <= 1 || ActivePage is null)
+        if (ActivePage is not null)
+        {
+            DeleteSpecificPage(ActivePage);
+        }
+    }
+
+    private bool CanDeleteSpecificPage(PageViewModel? targetPage) => Pages.Count > 1 && targetPage is not null;
+
+    [RelayCommand(CanExecute = nameof(CanDeleteSpecificPage))]
+    public void DeleteSpecificPage(PageViewModel? targetPage)
+    {
+        if (targetPage is null || Pages.Count <= 1)
         {
             return;
         }
 
-        var index = Pages.IndexOf(ActivePage);
+        if (!targetPage.IsEmpty)
+        {
+            var confirmed = ConfirmDialog(
+                $"Page {targetPage.PageNumber} contains notes or drawings. Are you sure you want to delete this page?",
+                "Delete Page");
+
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        DeletePageInternal(targetPage);
+    }
+
+    private void DeletePageInternal(PageViewModel targetPage)
+    {
+        var index = Pages.IndexOf(targetPage);
         if (index < 0)
         {
             return;
         }
 
-        var removed = ActivePage;
+        var wasActive = ReferenceEquals(ActivePage, targetPage);
+
+        UnhookPage(targetPage);
+        targetPage.Dehydrate();
         Pages.RemoveAt(index);
-        Document.Pages.Remove(removed.Model);
+        Document.Pages.Remove(targetPage.Model);
+        IsDirty = true;
 
         for (var i = 0; i < Pages.Count; i++)
         {
             Pages[i].PageNumber = i + 1;
         }
 
-        var nextActiveIndex = Math.Clamp(index, 0, Pages.Count - 1);
-        ActivePage = Pages[nextActiveIndex];
+        if (wasActive)
+        {
+            var nextActiveIndex = Math.Clamp(index, 0, Pages.Count - 1);
+            ActivePage = Pages[nextActiveIndex];
+            ActivePage.Hydrate();
+            PageNavigationScrollRequested?.Invoke(ActivePage);
+        }
+
         NotifyPageCountChanged();
-        PageNavigationScrollRequested?.Invoke(ActivePage);
+        OnPropertyChanged(nameof(ActivePageIndex));
+        DeletePageCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanGoNextPage() => ActivePage is not null && Pages.IndexOf(ActivePage) < Pages.Count - 1;
@@ -519,7 +678,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Title = "Export PDF Document",
                 Filter = "PDF Document (*.pdf)|*.pdf|All Files (*.*)|*.*",
                 DefaultExt = ".pdf",
-                FileName = $"{DocumentTitle}.pdf"
+                FileName = $"{GetSafeDocumentTitleForFileName()}.pdf"
             };
 
             if (dialog.ShowDialog() == true)
@@ -798,9 +957,11 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(ActivePageIndex));
         OnPropertyChanged(nameof(PageIndicatorDisplay));
+        OnPropertyChanged(nameof(CanDeletePages));
         NextPageCommand.NotifyCanExecuteChanged();
         PreviousPageCommand.NotifyCanExecuteChanged();
         DeletePageCommand.NotifyCanExecuteChanged();
+        DeleteSpecificPageCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -833,7 +994,7 @@ public sealed partial class MainViewModel : ObservableObject
                 DefaultExt = ".notex",
                 FileName = !string.IsNullOrWhiteSpace(CurrentFilePath)
                     ? Path.GetFileName(CurrentFilePath)
-                    : $"{DocumentTitle}.notex"
+                    : $"{GetSafeDocumentTitleForFileName()}.notex"
             };
 
             if (dialog.ShowDialog() == true)
@@ -902,6 +1063,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             CurrentFilePath = filePath;
             DocumentTitle = Path.GetFileNameWithoutExtension(filePath);
+            IsDirty = false;
         }
         finally
         {
@@ -940,6 +1102,11 @@ public sealed partial class MainViewModel : ObservableObject
             : (!string.IsNullOrWhiteSpace(filePath) ? Path.GetFileNameWithoutExtension(filePath) : NoteDocument.DefaultTitle);
         CurrentFilePath = filePath;
 
+        foreach (var p in Pages)
+        {
+            UnhookPage(p);
+        }
+
         Pages.Clear();
         foreach (var page in loadedDoc.Pages)
         {
@@ -951,6 +1118,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Document.Assets.GetValueOrDefault,
                 (k, b) => Document.Assets[k] = b,
                 strokes);
+            HookPage(pageVm);
             Pages.Add(pageVm);
         }
 
@@ -963,18 +1131,43 @@ public sealed partial class MainViewModel : ObservableObject
                 Height = Document.DefaultPageHeight
             };
             Document.Pages.Add(fallbackPage);
-            Pages.Add(new PageViewModel(
+            var fallbackVm = new PageViewModel(
                 fallbackPage,
                 UndoRedo,
                 Toolbar,
                 Document.Assets.GetValueOrDefault,
-                (k, b) => Document.Assets[k] = b));
+                (k, b) => Document.Assets[k] = b);
+            HookPage(fallbackVm);
+            Pages.Add(fallbackVm);
         }
 
         UndoRedo.Clear();
         ActivePage = Pages[0];
         ActivePage.Hydrate();
+        IsDirty = false;
+        IsEditingTitle = false;
         SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
         NotifyPageCountChanged();
+    }
+
+    private void HookPage(PageViewModel page)
+    {
+        page.PropertyChanged += OnPagePropertyChanged;
+    }
+
+    private void UnhookPage(PageViewModel page)
+    {
+        page.PropertyChanged -= OnPagePropertyChanged;
+    }
+
+    private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PageViewModel.IsDirty))
+        {
+            if (sender is PageViewModel { IsDirty: true })
+            {
+                IsDirty = true;
+            }
+        }
     }
 }

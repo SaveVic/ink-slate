@@ -6,7 +6,7 @@
                  xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core"
                  xmlns:controls="clr-namespace:InkSlate.App.Controls"
                  xmlns:vm="clr-namespace:InkSlate.App.ViewModels"
-                 Title="InkSlate"
+                 Title="{Binding WindowTitleDisplay, FallbackValue=InkSlate}"
                  Width="1280"
                  Height="800"
                  MinWidth="720"
@@ -39,28 +39,61 @@
                          po:Freeze="True" />
 
         <DataTemplate x:Key="PageSheetDataTemplate">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
-                    Margin="0,0,0,24"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Top"
-                    ClipToBounds="True"
-                    Background="{Binding BackgroundHex, FallbackValue=#FFFFFFFF}"
-                    BorderBrush="{StaticResource PageBorderBrush}"
-                    BorderThickness="1"
-                    Effect="{StaticResource PageSheetShadow}">
-                <controls:PageCanvasControl PageId="{Binding Id}"
-                                            PageStrokes="{Binding Strokes, Mode=TwoWay}"
-                                            UndoRedoManager="{Binding UndoRedo}"
-                                            IsPageDirty="{Binding IsDirty, Mode=TwoWay}"
-                                            InkDrawingAttributes="{Binding Toolbar.CurrentDrawingAttributes}"
-                                            ActiveToolMode="{Binding Toolbar.ActiveTool, FallbackValue={x:Static models:ToolMode.Pointer}}"
-                                            ActiveEraserMode="{Binding Toolbar.SelectedEraserMode, FallbackValue={x:Static models:EraserMode.Stroke}}"
-                                            EraserSize="{Binding Toolbar.SelectedEraserSize, FallbackValue=16.0}"
-                                            ActiveLassoFilterMode="{Binding Toolbar.SelectedLassoFilterMode, FallbackValue={x:Static models:LassoFilterMode.AllObjects}}"
-                                            PageElements="{Binding Elements}"
-                                            RemoveElementCommand="{Binding RemoveElementCommand}" />
-            </Border>
+            <StackPanel Width="{Binding Width}"
+                        Margin="0,0,0,24"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top">
+                <!-- Page Header: Top Left "Page {no}", Top Right Delete Button -->
+                <Grid Margin="2,0,2,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Top Left: "Page {no}" -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding PageNumber, StringFormat='Page {0}'}"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <!-- Top Right: Delete Button to Remove Page -->
+                    <ui:Button Grid.Column="1"
+                               Command="{Binding DataContext.DeleteSpecificPageCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                               CommandParameter="{Binding}"
+                               Visibility="{Binding DataContext.CanDeletePages, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Width="26"
+                               Height="26"
+                               Padding="0"
+                               Appearance="Transparent"
+                               ToolTip="Delete Page"
+                               Cursor="Hand">
+                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#D13438" />
+                    </ui:Button>
+                </Grid>
+
+                <!-- Page Sheet Paper -->
+                <Border Width="{Binding Width}"
+                        Height="{Binding Height}"
+                        ClipToBounds="True"
+                        Background="{Binding BackgroundHex, FallbackValue=#FFFFFFFF}"
+                        BorderBrush="{StaticResource PageBorderBrush}"
+                        BorderThickness="1"
+                        Effect="{StaticResource PageSheetShadow}">
+                    <controls:PageCanvasControl PageId="{Binding Id}"
+                                                PageStrokes="{Binding Strokes, Mode=TwoWay}"
+                                                UndoRedoManager="{Binding UndoRedo}"
+                                                IsPageDirty="{Binding IsDirty, Mode=TwoWay}"
+                                                InkDrawingAttributes="{Binding Toolbar.CurrentDrawingAttributes}"
+                                                ActiveToolMode="{Binding Toolbar.ActiveTool, FallbackValue={x:Static models:ToolMode.Pointer}}"
+                                                ActiveEraserMode="{Binding Toolbar.SelectedEraserMode, FallbackValue={x:Static models:EraserMode.Stroke}}"
+                                                EraserSize="{Binding Toolbar.SelectedEraserSize, FallbackValue=16.0}"
+                                                ActiveLassoFilterMode="{Binding Toolbar.SelectedLassoFilterMode, FallbackValue={x:Static models:LassoFilterMode.AllObjects}}"
+                                                PageElements="{Binding Elements}"
+                                                RemoveElementCommand="{Binding RemoveElementCommand}" />
+                </Border>
+            </StackPanel>
         </DataTemplate>
 
         <Style x:Key="ToolbarIconButtonStyle" TargetType="ui:Button">
@@ -172,12 +205,179 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Minimalist Drag & Caption TitleBar -->
-        <ui:TitleBar Grid.Row="0"
-                     ShowMinimize="True"
-                     ShowMaximize="True"
-                     ShowClose="True"
-                     ShowHelp="False" />
+        <!-- TitleBar & Window Header -->
+        <Grid Grid.Row="0">
+            <ui:TitleBar ShowMinimize="True"
+                         ShowMaximize="True"
+                         ShowClose="True"
+                         ShowHelp="False" />
+
+            <!-- Document Title & Saved Status (Centered in TitleBar, recommended Fluent position) -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+
+                <!-- Title Container (Interactive) -->
+                <Grid x:Name="TitleContainer"
+                      VerticalAlignment="Center"
+                      WindowChrome.IsHitTestVisibleInChrome="True">
+
+                    <!-- Display Mode Pill -->
+                    <Border x:Name="TitleDisplayPill"
+                            Cursor="Hand"
+                            CornerRadius="4"
+                            Padding="8,3"
+                            ToolTip="Click to edit document title (F2)"
+                            MouseLeftButtonUp="TitleDisplayPill_MouseLeftButtonUp">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}" />
+                                    </Trigger>
+                                    <DataTrigger Binding="{Binding IsEditingTitle}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Document Title -->
+                            <TextBlock Text="{Binding DocumentTitle}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="Edit16"
+                                           FontSize="11"
+                                           Margin="6,0,0,0"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Edit Mode Container -->
+                    <Grid x:Name="TitleEditContainer"
+                          VerticalAlignment="Center">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEditingTitle}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox x:Name="TitleEditTextBox"
+                                     Text="{Binding TitleDraft, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="12"
+                                     FontWeight="SemiBold"
+                                     MinWidth="90"
+                                     MaxWidth="280"
+                                     Height="26"
+                                     Padding="6,2"
+                                     VerticalContentAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     IsVisibleChanged="TitleEditTextBox_IsVisibleChanged"
+                                     KeyDown="TitleEditTextBox_KeyDown"
+                                     LostFocus="TitleEditTextBox_LostFocus" />
+
+                            <ui:Button Command="{Binding CommitTitleEditCommand}"
+                                       ToolTip="Apply Title (Enter)"
+                                       Width="24"
+                                       Height="24"
+                                       Margin="3,0,0,0"
+                                       Padding="0"
+                                       Appearance="Transparent"
+                                       Cursor="Hand"
+                                       VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Checkmark16" FontSize="12" Foreground="#107C41" />
+                            </ui:Button>
+
+                            <ui:Button Command="{Binding CancelTitleEditCommand}"
+                                       ToolTip="Cancel (Esc)"
+                                       Width="24"
+                                       Height="24"
+                                       Margin="2,0,0,0"
+                                       Padding="0"
+                                       Appearance="Transparent"
+                                       Cursor="Hand"
+                                       VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Dismiss16" FontSize="12" Foreground="#D13438" />
+                            </ui:Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+
+                <!-- Pass-through container for dash & badge so clicks can drag window -->
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False">
+
+                <!-- Separator dash -->
+                <TextBlock Text="—"
+                           Margin="6,0"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           VerticalAlignment="Center" />
+
+                <!-- Saved / Unsaved Status Indicator Badge -->
+                <Border CornerRadius="4"
+                        Padding="6,1.5"
+                        VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="#18D13438" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSaved}" Value="True">
+                                    <Setter Property="Background" Value="#18107C41" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Status Glyph Dot -->
+                        <Ellipse Width="6" Height="6" Margin="0,0,5,0" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#D13438" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSaved}" Value="True">
+                                            <Setter Property="Fill" Value="#107C41" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+
+                        <!-- Status Text -->
+                        <TextBlock Text="{Binding SaveStatusDisplay}"
+                                   FontSize="11"
+                                   FontWeight="Medium"
+                                   VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#D13438" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSaved}" Value="True">
+                                            <Setter Property="Foreground" Value="#107C41" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
 
         <!-- Main Workspace Layer -->
         <Grid Grid.Row="1">

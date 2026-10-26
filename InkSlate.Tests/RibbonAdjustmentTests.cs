@@ -606,5 +606,262 @@ public sealed class RibbonAdjustmentTests
             Assert.False((bool)isInsideMethod.Invoke(null, [new Grid()])!);
         });
     }
+
+    [Fact]
+    public void PageViewModel_IsEmpty_AccuratelyReflectsContent()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var pageVm = new PageViewModel(page);
+            pageVm.Hydrate();
+
+            // Brand new page is empty
+            Assert.True(pageVm.IsEmpty);
+
+            // Adding non-empty text element makes it not empty
+            var textElem = pageVm.AddTextElement(new Point(10, 10));
+            textElem.Text = "Hello InkSlate";
+            Assert.False(pageVm.IsEmpty);
+
+            // Removing text element makes it empty again
+            pageVm.RemoveElement(textElem);
+            Assert.True(pageVm.IsEmpty);
+
+            // Adding a stroke makes it not empty
+            var stroke = new Stroke([new StylusPoint(10, 10), new StylusPoint(20, 20)]);
+            pageVm.Strokes?.Add(stroke);
+            Assert.False(pageVm.IsEmpty);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_DeleteSpecificPage_EmptyPage_DeletesWithoutConfirmation()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            mainVm.AddPageCommand.Execute(null); // Now 2 pages
+            Assert.Equal(2, mainVm.Pages.Count);
+
+            var confirmCalled = false;
+            mainVm.ConfirmDialog = (_, _) =>
+            {
+                confirmCalled = true;
+                return true;
+            };
+
+            var page2 = mainVm.Pages[1];
+            Assert.True(page2.IsEmpty);
+
+            mainVm.DeleteSpecificPageCommand.Execute(page2);
+
+            Assert.False(confirmCalled);
+            Assert.Single(mainVm.Pages);
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_DeleteSpecificPage_NonEmptyPage_PromptsConfirmation()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            mainVm.AddPageCommand.Execute(null); // Now 2 pages
+            Assert.Equal(2, mainVm.Pages.Count);
+
+            var page2 = mainVm.Pages[1];
+            page2.Hydrate();
+            var text = page2.AddTextElement(new Point(50, 50));
+            text.Text = "Important notes on page 2";
+            Assert.False(page2.IsEmpty);
+
+            // User clicks "Cancel" (false)
+            var promptCount = 0;
+            mainVm.ConfirmDialog = (msg, title) =>
+            {
+                promptCount++;
+                Assert.Contains("Page 2", msg);
+                return false;
+            };
+
+            mainVm.DeleteSpecificPageCommand.Execute(page2);
+            Assert.Equal(1, promptCount);
+            Assert.Equal(2, mainVm.Pages.Count); // Not deleted!
+
+            // User clicks "Yes" (true)
+            mainVm.ConfirmDialog = (_, _) =>
+            {
+                promptCount++;
+                return true;
+            };
+
+            mainVm.DeleteSpecificPageCommand.Execute(page2);
+            Assert.Equal(2, promptCount);
+            Assert.Single(mainVm.Pages); // Deleted!
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_DeleteSpecificPage_OnlyOnePageLeft_DisabledAndDoesNotShowDialog()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            Assert.Single(mainVm.Pages);
+            Assert.False(mainVm.CanDeletePages);
+            Assert.False(mainVm.DeleteSpecificPageCommand.CanExecute(mainVm.Pages[0]));
+
+            var dialogCalled = false;
+            mainVm.InfoDialog = (_, _) => dialogCalled = true;
+            mainVm.ConfirmDialog = (_, _) => { dialogCalled = true; return true; };
+
+            mainVm.DeleteSpecificPageCommand.Execute(mainVm.Pages[0]);
+
+            Assert.False(dialogCalled);
+            Assert.Single(mainVm.Pages);
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+
+            // Adding a second page enables CanDeletePages and command execution
+            mainVm.AddPageCommand.Execute(null);
+            Assert.Equal(2, mainVm.Pages.Count);
+            Assert.True(mainVm.CanDeletePages);
+            Assert.True(mainVm.DeleteSpecificPageCommand.CanExecute(mainVm.Pages[1]));
+        });
+    }
+
+    [Fact]
+    public void DocumentTitleAndSaveStatus_InitialAndLifecycleStates()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+
+            // 1. Initial State: Untitled, Not saved
+            Assert.Equal("Untitled", mainVm.DocumentTitle);
+            Assert.Null(mainVm.CurrentFilePath);
+            Assert.False(mainVm.IsDirty);
+            Assert.False(mainVm.IsSaved);
+            Assert.Equal("Not saved", mainVm.SaveStatusDisplay);
+            Assert.Contains("Untitled", mainVm.WindowTitleDisplay);
+            Assert.Contains("•", mainVm.WindowTitleDisplay);
+
+            // 2. Modifying active page marks document dirty and unsaved
+            Assert.NotNull(mainVm.ActivePage);
+            var text = mainVm.ActivePage.AddTextElement(new Point(20, 20));
+            text.Text = "Note in progress";
+            Assert.True(mainVm.IsDirty);
+            Assert.False(mainVm.IsSaved);
+            Assert.Equal("Unsaved", mainVm.SaveStatusDisplay);
+
+            // 3. Simulating file save marks document saved and updates title
+            mainVm.CurrentFilePath = @"C:\docs\ProjectNotes.notex";
+            mainVm.DocumentTitle = "ProjectNotes";
+            mainVm.IsDirty = false;
+            Assert.True(mainVm.IsSaved);
+            Assert.Equal("Saved", mainVm.SaveStatusDisplay);
+            Assert.Equal("ProjectNotes - InkSlate", mainVm.WindowTitleDisplay);
+
+            // 4. Adding a page marks document unsaved again
+            mainVm.AddPageCommand.Execute(null);
+            Assert.True(mainVm.IsDirty);
+            Assert.False(mainVm.IsSaved);
+            Assert.Equal("Unsaved", mainVm.SaveStatusDisplay);
+            Assert.Equal("ProjectNotes • - InkSlate", mainVm.WindowTitleDisplay);
+
+            // 5. Loading document restores saved status and title
+            var loaded = new NoteDocument
+            {
+                Title = "MeetingSummary"
+            };
+            mainVm.LoadDocument(loaded, @"C:\docs\MeetingSummary.notex");
+            Assert.Equal("MeetingSummary", mainVm.DocumentTitle);
+            Assert.True(mainVm.IsSaved);
+            Assert.Equal("Saved", mainVm.SaveStatusDisplay);
+            Assert.Equal("MeetingSummary - InkSlate", mainVm.WindowTitleDisplay);
+        });
+    }
+
+    [Fact]
+    public void DocumentTitle_EditLifecycle_BeginCancelAndCommit()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            Assert.Equal("Untitled", mainVm.DocumentTitle);
+            Assert.False(mainVm.IsEditingTitle);
+            Assert.Empty(mainVm.TitleDraft);
+
+            // 1. Begin edit initializes draft and flags editing mode
+            mainVm.BeginEditTitleCommand.Execute(null);
+            Assert.True(mainVm.IsEditingTitle);
+            Assert.Equal("Untitled", mainVm.TitleDraft);
+
+            // 2. Cancel edit restores draft and leaves title unchanged
+            mainVm.TitleDraft = "Work in Progress";
+            mainVm.CancelTitleEditCommand.Execute(null);
+            Assert.False(mainVm.IsEditingTitle);
+            Assert.Equal("Untitled", mainVm.DocumentTitle);
+            Assert.Equal("Untitled", mainVm.TitleDraft);
+            Assert.False(mainVm.IsDirty);
+
+            // 3. Commit edit updates document title, marks dirty, and updates WindowTitleDisplay
+            mainVm.BeginEditTitleCommand.Execute(null);
+            mainVm.TitleDraft = "Chemistry Notes";
+            mainVm.CommitTitleEditCommand.Execute(null);
+            Assert.False(mainVm.IsEditingTitle);
+            Assert.Equal("Chemistry Notes", mainVm.DocumentTitle);
+            Assert.Equal("Chemistry Notes", mainVm.Document.Title);
+            Assert.True(mainVm.IsDirty);
+            Assert.Contains("Chemistry Notes", mainVm.WindowTitleDisplay);
+
+            // 4. Committing blank/whitespace title falls back to Untitled
+            mainVm.BeginEditTitleCommand.Execute(null);
+            mainVm.TitleDraft = "   ";
+            mainVm.CommitTitleEditCommand.Execute(null);
+            Assert.Equal(NoteDocument.DefaultTitle, mainVm.DocumentTitle);
+            Assert.Equal(NoteDocument.DefaultTitle, mainVm.Document.Title);
+        });
+    }
+
+    [Fact]
+    public void DocumentTitle_GetSafeDocumentTitleForFileName_SanitizesIllegalCharacters()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel
+            {
+                DocumentTitle = @"Project/Proposal: Draft *2* <Final>?"
+            };
+
+            var safeName = mainVm.GetSafeDocumentTitleForFileName();
+            Assert.DoesNotContain("/", safeName);
+            Assert.DoesNotContain(":", safeName);
+            Assert.DoesNotContain("*", safeName);
+            Assert.DoesNotContain("<", safeName);
+            Assert.DoesNotContain(">", safeName);
+            Assert.DoesNotContain("?", safeName);
+            Assert.Contains("Project", safeName);
+            Assert.Contains("Proposal", safeName);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_F2Key_TriggersBeginEditTitle()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.False(mainVm.IsEditingTitle);
+            var handled = window.HandleNavigationKey(Key.F2, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.True(mainVm.IsEditingTitle);
+            Assert.Equal("Untitled", mainVm.TitleDraft);
+        });
+    }
 }
 

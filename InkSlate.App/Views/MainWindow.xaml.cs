@@ -54,6 +54,14 @@ public partial class MainWindow : FluentWindow
                     return true;
                 }
             }
+            else if (key == Key.F2)
+            {
+                if (!ViewModel.IsEditingTitle)
+                {
+                    ViewModel.BeginEditTitleCommand.Execute(null);
+                    return true;
+                }
+            }
             else if (key == Key.F5)
             {
                 ViewModel.ToggleViewModeCommand.Execute(null);
@@ -216,6 +224,51 @@ public partial class MainWindow : FluentWindow
         {
             ViewportScrollViewer.ScrollToVerticalOffset(0);
             ViewportScrollViewer.ScrollToHorizontalOffset(0);
+        }
+    }
+
+    private void TitleDisplayPill_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        ViewModel.BeginEditTitleCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private void TitleEditTextBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox textBox && textBox.IsVisible)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    private void TitleEditTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ViewModel.CommitTitleEditCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            ViewModel.CancelTitleEditCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void TitleEditTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (TitleContainer.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        if (ViewModel.IsEditingTitle)
+        {
+            ViewModel.CommitTitleEditCommand.Execute(null);
         }
     }
 

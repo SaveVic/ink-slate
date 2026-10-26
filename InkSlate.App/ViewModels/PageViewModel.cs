@@ -92,6 +92,53 @@ public sealed partial class PageViewModel : ObservableObject
     public Guid Id => Model.Id;
     public int CompressedIsfByteCount => _compressedIsfBytes?.Length ?? 0;
 
+    public bool IsEmpty
+    {
+        get
+        {
+            var hasStrokes = (Strokes?.Count ?? (CompressedIsfByteCount > 0 ? 1 : 0)) > 0;
+            if (hasStrokes)
+            {
+                return false;
+            }
+
+            foreach (var el in Elements)
+            {
+                if (el is TextCanvasElementViewModel textVm)
+                {
+                    if (!string.IsNullOrWhiteSpace(textVm.Text))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (Model.Elements.Count > 0)
+            {
+                foreach (var el in Model.Elements)
+                {
+                    if (el is TextCanvasElement textModel)
+                    {
+                        if (!string.IsNullOrWhiteSpace(textModel.Text))
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+
     public ObservableCollection<CanvasElementViewModel> Elements { get; } = [];
 
     public void AddElement(CanvasElement element)

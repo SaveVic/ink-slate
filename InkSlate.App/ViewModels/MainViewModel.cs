@@ -355,6 +355,15 @@ public sealed partial class MainViewModel : ObservableObject
         PageNavigationScrollRequested?.Invoke(pageVm);
     }
 
+    [RelayCommand]
+    public void DeleteSelected()
+    {
+        foreach (var page in Pages)
+        {
+            page.DeleteSelectedElements();
+        }
+    }
+
     private bool CanDeletePage() => Pages.Count > 1 && ActivePage is not null;
 
     [RelayCommand(CanExecute = nameof(CanDeletePage))]

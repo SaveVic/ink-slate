@@ -21,6 +21,8 @@ public sealed class CanvasElementAdorner : Adorner
 
     private Rect _initialBounds;
     private Rect? _initialCrop;
+    private double _totalDeltaX;
+    private double _totalDeltaY;
     private readonly Pen _borderPen;
 
     public CanvasElementAdorner(
@@ -125,6 +127,8 @@ public sealed class CanvasElementAdorner : Adorner
 
     private void OnThumbDragStarted(object sender, DragStartedEventArgs e)
     {
+        _totalDeltaX = 0;
+        _totalDeltaY = 0;
         _initialBounds = new Rect(ElementViewModel.X, ElementViewModel.Y, ElementViewModel.Width, ElementViewModel.Height);
         if (ElementViewModel is ImageCanvasElementViewModel imgVm)
         {
@@ -138,6 +142,8 @@ public sealed class CanvasElementAdorner : Adorner
 
     private void OnThumbDragCompleted(object sender, DragCompletedEventArgs e)
     {
+        _totalDeltaX = 0;
+        _totalDeltaY = 0;
         var newBounds = new Rect(ElementViewModel.X, ElementViewModel.Y, ElementViewModel.Width, ElementViewModel.Height);
         Rect? newCrop = ElementViewModel is ImageCanvasElementViewModel imgVm ? imgVm.CropRect : null;
 
@@ -153,27 +159,47 @@ public sealed class CanvasElementAdorner : Adorner
 
     private void OnBottomRightDragDelta(object sender, DragDeltaEventArgs e)
     {
+        EnsureInitialBounds();
+        _totalDeltaX += e.HorizontalChange;
+        _totalDeltaY += e.VerticalChange;
+
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width + e.HorizontalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
             var newH = Math.Max(MinDimension, newW / aspect);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = newH;
         }
         else
         {
-            ElementViewModel.Width = Math.Max(MinDimension, _initialBounds.Width + e.HorizontalChange);
-            ElementViewModel.Height = Math.Max(MinDimension, _initialBounds.Height + e.VerticalChange);
+            ElementViewModel.Width = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
+            ElementViewModel.Height = Math.Max(MinDimension, _initialBounds.Height + _totalDeltaY);
+        }
+    }
+
+    private void EnsureInitialBounds()
+    {
+        if (_initialBounds.IsEmpty || _initialBounds.Width <= 0 || _initialBounds.Height <= 0)
+        {
+            _initialBounds = new Rect(ElementViewModel.X, ElementViewModel.Y, ElementViewModel.Width, ElementViewModel.Height);
+            if (ElementViewModel is ImageCanvasElementViewModel imgVm)
+            {
+                _initialCrop = imgVm.CropRect;
+            }
         }
     }
 
     private void OnBottomLeftDragDelta(object sender, DragDeltaEventArgs e)
     {
+        EnsureInitialBounds();
+        _totalDeltaX += e.HorizontalChange;
+        _totalDeltaY += e.VerticalChange;
+
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width - e.HorizontalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
             var newH = Math.Max(MinDimension, newW / aspect);
             ElementViewModel.X = _initialBounds.Right - newW;
             ElementViewModel.Width = newW;
@@ -181,19 +207,23 @@ public sealed class CanvasElementAdorner : Adorner
         }
         else
         {
-            var newW = Math.Max(MinDimension, _initialBounds.Width - e.HorizontalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
             ElementViewModel.X = _initialBounds.Right - newW;
             ElementViewModel.Width = newW;
-            ElementViewModel.Height = Math.Max(MinDimension, _initialBounds.Height + e.VerticalChange);
+            ElementViewModel.Height = Math.Max(MinDimension, _initialBounds.Height + _totalDeltaY);
         }
     }
 
     private void OnTopRightDragDelta(object sender, DragDeltaEventArgs e)
     {
+        EnsureInitialBounds();
+        _totalDeltaX += e.HorizontalChange;
+        _totalDeltaY += e.VerticalChange;
+
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width + e.HorizontalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
             var newH = Math.Max(MinDimension, newW / aspect);
             ElementViewModel.Y = _initialBounds.Bottom - newH;
             ElementViewModel.Width = newW;
@@ -201,19 +231,23 @@ public sealed class CanvasElementAdorner : Adorner
         }
         else
         {
-            var newH = Math.Max(MinDimension, _initialBounds.Height - e.VerticalChange);
+            var newH = Math.Max(MinDimension, _initialBounds.Height - _totalDeltaY);
             ElementViewModel.Y = _initialBounds.Bottom - newH;
-            ElementViewModel.Width = Math.Max(MinDimension, _initialBounds.Width + e.HorizontalChange);
+            ElementViewModel.Width = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
             ElementViewModel.Height = newH;
         }
     }
 
     private void OnTopLeftDragDelta(object sender, DragDeltaEventArgs e)
     {
+        EnsureInitialBounds();
+        _totalDeltaX += e.HorizontalChange;
+        _totalDeltaY += e.VerticalChange;
+
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width - e.HorizontalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
             var newH = Math.Max(MinDimension, newW / aspect);
             ElementViewModel.X = _initialBounds.Right - newW;
             ElementViewModel.Y = _initialBounds.Bottom - newH;
@@ -222,8 +256,8 @@ public sealed class CanvasElementAdorner : Adorner
         }
         else
         {
-            var newW = Math.Max(MinDimension, _initialBounds.Width - e.HorizontalChange);
-            var newH = Math.Max(MinDimension, _initialBounds.Height - e.VerticalChange);
+            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
+            var newH = Math.Max(MinDimension, _initialBounds.Height - _totalDeltaY);
             ElementViewModel.X = _initialBounds.Right - newW;
             ElementViewModel.Y = _initialBounds.Bottom - newH;
             ElementViewModel.Width = newW;

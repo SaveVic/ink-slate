@@ -1,5 +1,7 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using InkSlate.App.ViewModels;
 using InkSlate.Core.Models;
 using Wpf.Ui.Controls;
@@ -91,6 +93,29 @@ public partial class MainWindow : FluentWindow
             {
                 ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Image);
                 return true;
+            }
+            else if (key is Key.Delete or Key.Back)
+            {
+                var hasSelectedElements = ViewModel.Pages.Any(p => p.Elements.Any(e => e.IsSelected && !e.IsEditing));
+                if (hasSelectedElements)
+                {
+                    ViewModel.DeleteSelectedCommand.Execute(null);
+                    return true;
+                }
+
+                var deletedStrokes = false;
+                foreach (var pcc in FindVisualChildren<Controls.PageCanvasControl>(this))
+                {
+                    if (pcc.DeleteSelectedStrokes())
+                    {
+                        deletedStrokes = true;
+                    }
+                }
+
+                if (deletedStrokes)
+                {
+                    return true;
+                }
             }
         }
         else if (modifiers == ModifierKeys.Control)
@@ -191,6 +216,28 @@ public partial class MainWindow : FluentWindow
         {
             ViewportScrollViewer.ScrollToVerticalOffset(0);
             ViewportScrollViewer.ScrollToHorizontalOffset(0);
+        }
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject
+    {
+        if (depObj is null)
+        {
+            yield break;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(depObj); i++)
+        {
+            var child = VisualTreeHelper.GetChild(depObj, i);
+            if (child is T t)
+            {
+                yield return t;
+            }
+
+            foreach (var childOfChild in FindVisualChildren<T>(child))
+            {
+                yield return childOfChild;
+            }
         }
     }
 }

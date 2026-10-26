@@ -356,23 +356,118 @@ public partial class PageCanvasControl : UserControl
         }
         else if (ActiveToolMode is not ToolMode.Pen and not ToolMode.Highlighter)
         {
-            var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
-            if (hit is null)
+            var isInteractive = IsInsideElementOrAdorner(e.OriginalSource as DependencyObject);
+            if (!isInteractive)
             {
-                if (DataContext is PageViewModel pageVm)
+                var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
+                if (hit is null)
                 {
-                    pageVm.SelectSingleElement(null);
-                }
-                else if (PageElements is not null)
-                {
-                    foreach (var el in PageElements.ToList())
+                    if (DataContext is PageViewModel pageVm)
                     {
-                        el.IsSelected = false;
-                        el.IsEditing = false;
+                        pageVm.SelectSingleElement(null);
+                    }
+                    else if (PageElements is not null)
+                    {
+                        foreach (var el in PageElements.ToList())
+                        {
+                            el.IsSelected = false;
+                            el.IsEditing = false;
+                        }
                     }
                 }
             }
         }
+    }
+
+    private static bool IsInsideElementOrAdorner(DependencyObject? obj)
+    {
+        while (obj is not null)
+        {
+            if (obj is CanvasElementContainer or CanvasElementAdorner or System.Windows.Controls.Primitives.Thumb)
+            {
+                return true;
+            }
+
+            obj = VisualTreeHelper.GetParent(obj);
+        }
+
+        return false;
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        if (e.Handled)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is TextBox)
+        {
+            return;
+        }
+
+        if ((e.Key == Key.Delete || e.Key == Key.Back) && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            if (DeleteSelected())
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
+    public bool DeleteSelected()
+    {
+        var deleted = false;
+        if (DataContext is PageViewModel pageVm)
+        {
+            var selected = pageVm.Elements.Where(e => e.IsSelected && !e.IsEditing).ToList();
+            if (selected.Count > 0)
+            {
+                foreach (var el in selected)
+                {
+                    pageVm.RemoveElement(el);
+                }
+                deleted = true;
+            }
+        }
+        else if (PageElements is not null)
+        {
+            var selected = PageElements.Where(e => e.IsSelected && !e.IsEditing).ToList();
+            if (selected.Count > 0)
+            {
+                foreach (var el in selected)
+                {
+                    if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(el))
+                    {
+                        RemoveElementCommand.Execute(el);
+                    }
+                    else
+                    {
+                        PageElements.Remove(el);
+                    }
+                }
+                deleted = true;
+            }
+        }
+
+        if (DeleteSelectedStrokes())
+        {
+            deleted = true;
+        }
+
+        return deleted;
+    }
+
+    public bool DeleteSelectedStrokes()
+    {
+        var strokes = InternalInkCanvas.GetSelectedStrokes();
+        if (strokes.Count > 0)
+        {
+            InternalInkCanvas.Strokes.Remove(strokes);
+            return true;
+        }
+        return false;
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)

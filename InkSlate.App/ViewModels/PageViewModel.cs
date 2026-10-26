@@ -74,7 +74,7 @@ public sealed partial class PageViewModel : ObservableObject
         foreach (var element in model.Elements)
         {
             var vm = CanvasElementViewModel.Create(element, AssetResolver);
-            vm.PropertyChanged += OnElementPropertyChanged;
+            ConfigureElementViewModel(vm);
             Elements.Add(vm);
         }
 
@@ -113,7 +113,7 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         var vm = CanvasElementViewModel.Create(element, AssetResolver);
-        vm.PropertyChanged += OnElementPropertyChanged;
+        ConfigureElementViewModel(vm);
         Elements.Add(vm);
         Model.Elements.Add(element);
         IsDirty = true;
@@ -155,7 +155,7 @@ public sealed partial class PageViewModel : ObservableObject
             ImageSource = frozenBitmap
         };
 
-        vm.PropertyChanged += OnElementPropertyChanged;
+        ConfigureElementViewModel(vm);
         Elements.Add(vm);
         Model.Elements.Add(model);
         IsDirty = true;
@@ -183,7 +183,7 @@ public sealed partial class PageViewModel : ObservableObject
         {
             X = Math.Max(0.0, position.X),
             Y = Math.Max(0.0, position.Y),
-            Width = 220.0,
+            Width = 260.0,
             Height = 60.0,
             Text = string.Empty,
             FontSize = Toolbar?.SelectedTextFontSize ?? 18.0,
@@ -271,6 +271,7 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         elementVm.PropertyChanged -= OnElementPropertyChanged;
+        elementVm.RequestDelete = null;
         Elements.RemoveAt(index);
         Model.Elements.Remove(elementVm.Model);
         IsDirty = true;
@@ -278,6 +279,16 @@ public sealed partial class PageViewModel : ObservableObject
         if (UndoRedo is not null && !UndoRedo.IsReplaying)
         {
             UndoRedo.Record(new ElementRemovedOperation(Id, _synchronizedElements, elementVm.Model, index));
+        }
+    }
+
+    [RelayCommand]
+    public void DeleteSelectedElements()
+    {
+        var selectedElements = Elements.Where(e => e.IsSelected && !e.IsEditing).ToList();
+        foreach (var el in selectedElements)
+        {
+            RemoveElement(el);
         }
     }
 
@@ -459,6 +470,12 @@ public sealed partial class PageViewModel : ObservableObject
         }
     }
 
+    private void ConfigureElementViewModel(CanvasElementViewModel vm)
+    {
+        vm.PropertyChanged += OnElementPropertyChanged;
+        vm.RequestDelete = RemoveElement;
+    }
+
     private void OnSynchronizedElementInserted(int index, CanvasElement item)
     {
         IsDirty = true;
@@ -471,7 +488,9 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         var insertIndex = Math.Clamp(index, 0, Elements.Count);
-        Elements.Insert(insertIndex, CanvasElementViewModel.Create(item, AssetResolver));
+        var vm = CanvasElementViewModel.Create(item, AssetResolver);
+        ConfigureElementViewModel(vm);
+        Elements.Insert(insertIndex, vm);
     }
 
     private void OnSynchronizedElementRemoved(CanvasElement item)

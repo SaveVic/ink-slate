@@ -428,5 +428,183 @@ public sealed class RibbonAdjustmentTests
             Assert.Equal("#FFDC2626", textElem.ForegroundHex);
         });
     }
+
+    [Fact]
+    public void SelectedObject_DeletedViaDeleteKey_IsRemovedFromPage()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+            Assert.NotNull(mainVm.ActivePage);
+
+            var textElem = mainVm.ActivePage.AddTextElement(new Point(50, 50));
+            textElem.Text = "Note to delete";
+            textElem.IsEditing = false;
+            textElem.IsSelected = true;
+
+            var handled = window.HandleNavigationKey(Key.Delete, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Empty(mainVm.ActivePage.Elements);
+        });
+    }
+
+    [Fact]
+    public void SelectedObject_DeletedViaBackspaceKey_IsRemovedFromPage()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+            Assert.NotNull(mainVm.ActivePage);
+
+            var textElem = mainVm.ActivePage.AddTextElement(new Point(50, 50));
+            textElem.Text = "Note to delete with backspace";
+            textElem.IsEditing = false;
+            textElem.IsSelected = true;
+
+            var handled = window.HandleNavigationKey(Key.Back, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.Empty(mainVm.ActivePage.Elements);
+        });
+    }
+
+    [Fact]
+    public void SelectedObject_DeleteCommandOnElement_RemovesElementFromPage()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            Assert.NotNull(mainVm.ActivePage);
+
+            var textElem = mainVm.ActivePage.AddTextElement(new Point(50, 50));
+            textElem.Text = "Mini-bar trash button test";
+            Assert.Single(mainVm.ActivePage.Elements);
+
+            textElem.DeleteCommand.Execute(null);
+            Assert.Empty(mainVm.ActivePage.Elements);
+        });
+    }
+
+    [Fact]
+    public void ObjectInEditingMode_NotRemovedByDeleteKey()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+            Assert.NotNull(mainVm.ActivePage);
+
+            var textElem = mainVm.ActivePage.AddTextElement(new Point(50, 50));
+            textElem.Text = "Currently typing";
+            textElem.IsSelected = true;
+            textElem.IsEditing = true;
+
+            var handled = window.HandleNavigationKey(Key.Delete, ModifierKeys.None);
+            Assert.False(handled);
+            Assert.Single(mainVm.ActivePage.Elements);
+        });
+    }
+
+    [Fact]
+    public void DeletedObject_CanBeRestoredWithUndo()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            Assert.NotNull(mainVm.ActivePage);
+
+            var textElem = mainVm.ActivePage.AddTextElement(new Point(50, 50));
+            textElem.Text = "Undoable deleted note";
+            textElem.IsEditing = false;
+            textElem.IsSelected = true;
+
+            mainVm.DeleteSelectedCommand.Execute(null);
+            Assert.Empty(mainVm.ActivePage.Elements);
+
+            Assert.True(mainVm.UndoCommand.CanExecute(null));
+            mainVm.UndoCommand.Execute(null);
+
+            Assert.Single(mainVm.ActivePage.Elements);
+            var restored = Assert.IsType<TextCanvasElementViewModel>(mainVm.ActivePage.Elements[0]);
+            Assert.Equal("Undoable deleted note", restored.Text);
+        });
+    }
+
+    [Fact]
+    public void CanvasElementAdorner_ResizeCornerDrag_PreservesSelectionAndScalesProportionally()
+    {
+        RunInSta(() =>
+        {
+            var model = new ImageCanvasElement
+            {
+                AssetKey = "test_img",
+                X = 100,
+                Y = 100,
+                Width = 200,
+                Height = 100
+            };
+            var imgVm = new ImageCanvasElementViewModel(model)
+            {
+                IsSelected = true
+            };
+
+            var container = new CanvasElementContainer(imgVm);
+            var adorner = new CanvasElementAdorner(container, imgVm, null, Guid.NewGuid());
+
+            // Check visual thumbs exist
+            Assert.Equal(4, adorner.GetType().GetProperty("VisualChildrenCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(adorner));
+
+            var getVisualChildMethod = adorner.GetType().GetMethod("GetVisualChild", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(getVisualChildMethod);
+
+            var bottomRightThumb = Assert.IsType<System.Windows.Controls.Primitives.Thumb>(getVisualChildMethod.Invoke(adorner, [2]));
+
+            // Simulate drag started and drag delta on bottom-right corner thumb
+            bottomRightThumb.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0)
+            {
+                RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent
+            });
+
+            bottomRightThumb.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(50, 25)
+            {
+                RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent
+            });
+
+            // Selection is preserved
+            Assert.True(imgVm.IsSelected);
+            // Width increased from 200 to 250, aspect ratio (2.0) preserved: height = 125
+            Assert.Equal(250.0, imgVm.Width, 2);
+            Assert.Equal(125.0, imgVm.Height, 2);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_IsInsideElementOrAdorner_RecognizesThumbsAndAdorners()
+    {
+        RunInSta(() =>
+        {
+            var isInsideMethod = typeof(PageCanvasControl).GetMethod("IsInsideElementOrAdorner", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.NotNull(isInsideMethod);
+
+            var model = new ImageCanvasElement { AssetKey = "test_asset", Width = 100, Height = 100 };
+            var imgVm = new ImageCanvasElementViewModel(model);
+            var container = new CanvasElementContainer(imgVm);
+            var adorner = new CanvasElementAdorner(container, imgVm, null, Guid.NewGuid());
+
+            var getVisualChildMethod = adorner.GetType().GetMethod("GetVisualChild", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(getVisualChildMethod);
+            var thumb = Assert.IsType<System.Windows.Controls.Primitives.Thumb>(getVisualChildMethod.Invoke(adorner, [0]));
+
+            // Adorner thumb is recognized as interactive element
+            Assert.True((bool)isInsideMethod.Invoke(null, [thumb])!);
+            // Adorner is recognized
+            Assert.True((bool)isInsideMethod.Invoke(null, [adorner])!);
+            // Container is recognized
+            Assert.True((bool)isInsideMethod.Invoke(null, [container])!);
+            // Arbitrary grid is not
+            Assert.False((bool)isInsideMethod.Invoke(null, [new Grid()])!);
+        });
+    }
 }
 

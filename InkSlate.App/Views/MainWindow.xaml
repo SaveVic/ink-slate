@@ -943,6 +943,18 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+                    <!-- Delete Selected Text Object -->
+                    <ui:Button Command="{Binding DeleteSelectedCommand}"
+                               Width="28"
+                               Height="28"
+                               Margin="2,0"
+                               Padding="0"
+                               ToolTip="Delete (Del)">
+                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#E02020" />
+                    </ui:Button>
                 </StackPanel>
             </Border>
 

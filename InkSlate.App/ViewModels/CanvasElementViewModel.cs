@@ -1,10 +1,11 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using InkSlate.Core.Models.CanvasElements;
 
 namespace InkSlate.App.ViewModels;
 
-public class CanvasElementViewModel : ObservableObject
+public partial class CanvasElementViewModel : ObservableObject
 {
     private double _x;
     private double _y;
@@ -23,6 +24,14 @@ public class CanvasElementViewModel : ObservableObject
         _width = model.Width;
         _height = model.Height;
         _zIndex = model.ZIndex;
+    }
+
+    public Action<CanvasElementViewModel>? RequestDelete { get; set; }
+
+    [RelayCommand]
+    public void Delete()
+    {
+        RequestDelete?.Invoke(this);
     }
 
     public CanvasElement Model { get; }

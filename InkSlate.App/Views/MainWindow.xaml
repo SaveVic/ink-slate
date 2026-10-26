@@ -43,10 +43,16 @@
                     Margin="0,0,0,24"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Top"
+                    ClipToBounds="True"
                     Background="{Binding BackgroundHex, FallbackValue=#FFFFFFFF}"
                     BorderBrush="{StaticResource PageBorderBrush}"
                     BorderThickness="1"
-                    Effect="{StaticResource PageSheetShadow}" />
+                    Effect="{StaticResource PageSheetShadow}">
+                <controls:PageCanvasControl PageId="{Binding Id}"
+                                            PageStrokes="{Binding Strokes, Mode=TwoWay}"
+                                            UndoRedoManager="{Binding UndoRedo}"
+                                            IsPageDirty="{Binding IsDirty, Mode=TwoWay}" />
+            </Border>
         </DataTemplate>
 
         <Style x:Key="ToolbarIconButtonStyle" TargetType="ui:Button">

@@ -86,7 +86,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var page in document.Pages)
         {
-            Pages.Add(new PageViewModel(page));
+            Pages.Add(new PageViewModel(page, UndoRedo));
         }
 
         ActivePage = Pages[0];
@@ -267,7 +267,7 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         Document.Pages.Add(model);
-        var pageVm = new PageViewModel(model);
+        var pageVm = new PageViewModel(model, UndoRedo);
         Pages.Add(pageVm);
         ActivePage = pageVm;
         NotifyPageCountChanged();

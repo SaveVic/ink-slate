@@ -78,12 +78,11 @@ public sealed class ViewportAndPaginationTests
     [Fact]
     public void CsCheckFuzzingCorruptedIsfBytesNeverThrows()
     {
-        RunInSta(() =>
+        Gen.Byte.Array[0, 512].Sample(randomBytes =>
         {
-            var page = new PageViewModel(new NotePage { PageNumber = 1 });
-
-            Gen.Byte.Array[0, 512].Sample(randomBytes =>
+            RunInSta(() =>
             {
+                var page = new PageViewModel(new NotePage { PageNumber = 1 });
                 page.LoadIsfBytes(randomBytes);
                 page.Hydrate();
                 Assert.True(page.IsHydrated);

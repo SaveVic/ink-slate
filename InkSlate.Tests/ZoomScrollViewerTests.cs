@@ -191,16 +191,15 @@ public sealed class ZoomScrollViewerTests
     [Fact]
     public void CsCheckPropertyFuzzing_ZoomAtPointAlwaysMaintainsValidBoundsAndOffsets()
     {
-        RunInSta(() =>
+        Gen.Select(
+            Gen.Double[-10.0, 10.0],
+            Gen.Double[-500.0, 2000.0],
+            Gen.Double[-500.0, 2000.0])
+        .Sample((multiplier, anchorX, anchorY) =>
         {
-            var viewer = new ZoomScrollViewer();
-
-            Gen.Select(
-                Gen.Double[-10.0, 10.0],
-                Gen.Double[-500.0, 2000.0],
-                Gen.Double[-500.0, 2000.0])
-            .Sample((multiplier, anchorX, anchorY) =>
+            RunInSta(() =>
             {
+                var viewer = new ZoomScrollViewer();
                 viewer.ZoomAtPoint(multiplier, new Point(anchorX, anchorY));
 
                 Assert.True(viewer.ZoomLevel >= 0.25);

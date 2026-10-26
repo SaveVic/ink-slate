@@ -57,6 +57,21 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasDimensionInputError;
 
+    [ObservableProperty]
+    private string? _currentFilePath;
+
+    [ObservableProperty]
+    private string _documentTitle = NoteDocument.DefaultTitle;
+
+    [ObservableProperty]
+    private bool _isSaving;
+
+    [ObservableProperty]
+    private bool _isLoading;
+
+    public Func<string?>? FileOpenPicker { get; set; }
+    public Func<string?>? FileSavePicker { get; set; }
+
     public event Action<PageViewModel>? PageNavigationScrollRequested;
 
     public MainViewModel()
@@ -109,7 +124,7 @@ public sealed partial class MainViewModel : ObservableObject
         SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
     }
 
-    public NoteDocument Document { get; }
+    public NoteDocument Document { get; private set; }
     public UndoRedoManager UndoRedo { get; }
     public ToolbarViewModel Toolbar { get; }
 
@@ -634,5 +649,180 @@ public sealed partial class MainViewModel : ObservableObject
         NextPageCommand.NotifyCanExecuteChanged();
         PreviousPageCommand.NotifyCanExecuteChanged();
         DeletePageCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    public async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentFilePath))
+        {
+            await SaveAsAsync();
+        }
+        else
+        {
+            await SaveToFileAsync(CurrentFilePath);
+        }
+    }
+
+    [RelayCommand]
+    public async Task SaveAsAsync()
+    {
+        string? selectedPath = null;
+        if (FileSavePicker is not null)
+        {
+            selectedPath = FileSavePicker();
+        }
+        else
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save InkSlate Document",
+                Filter = "InkSlate Document (*.notex)|*.notex|All Files (*.*)|*.*",
+                DefaultExt = ".notex",
+                FileName = !string.IsNullOrWhiteSpace(CurrentFilePath)
+                    ? Path.GetFileName(CurrentFilePath)
+                    : $"{DocumentTitle}.notex"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                selectedPath = dialog.FileName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedPath))
+        {
+            await SaveToFileAsync(selectedPath);
+        }
+    }
+
+    [RelayCommand]
+    public async Task OpenAsync()
+    {
+        string? selectedPath = null;
+        if (FileOpenPicker is not null)
+        {
+            selectedPath = FileOpenPicker();
+        }
+        else
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Open InkSlate Document",
+                Filter = "InkSlate Document (*.notex)|*.notex|All Files (*.*)|*.*",
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                selectedPath = dialog.FileName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedPath))
+        {
+            await LoadFromFileAsync(selectedPath);
+        }
+    }
+
+    public async Task SaveToFileAsync(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        if (IsSaving)
+        {
+            return;
+        }
+
+        try
+        {
+            IsSaving = true;
+            await FilePackageService.SaveAsync(
+                Document,
+                filePath,
+                strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes,
+                isfBytesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.ExportIsfBytes());
+
+            foreach (var page in Pages)
+            {
+                page.IsDirty = false;
+            }
+
+            CurrentFilePath = filePath;
+            DocumentTitle = Path.GetFileNameWithoutExtension(filePath);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    public async Task LoadFromFileAsync(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        if (IsLoading)
+        {
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            var loadedDoc = await FilePackageService.LoadAsync(filePath);
+            LoadDocument(loadedDoc, filePath);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public void LoadDocument(NoteDocument loadedDoc, string? filePath = null)
+    {
+        ArgumentNullException.ThrowIfNull(loadedDoc);
+
+        Document = loadedDoc;
+        DocumentTitle = !string.IsNullOrWhiteSpace(loadedDoc.Title)
+            ? loadedDoc.Title
+            : (!string.IsNullOrWhiteSpace(filePath) ? Path.GetFileNameWithoutExtension(filePath) : NoteDocument.DefaultTitle);
+        CurrentFilePath = filePath;
+
+        Pages.Clear();
+        foreach (var page in loadedDoc.Pages)
+        {
+            var strokes = loadedDoc.PageStrokes.GetValueOrDefault(page.Id);
+            var pageVm = new PageViewModel(
+                page,
+                UndoRedo,
+                Toolbar,
+                Document.Assets.GetValueOrDefault,
+                (k, b) => Document.Assets[k] = b,
+                strokes);
+            Pages.Add(pageVm);
+        }
+
+        if (Pages.Count == 0)
+        {
+            var fallbackPage = new NotePage
+            {
+                PageNumber = 1,
+                Width = Document.DefaultPageWidth,
+                Height = Document.DefaultPageHeight
+            };
+            Document.Pages.Add(fallbackPage);
+            Pages.Add(new PageViewModel(
+                fallbackPage,
+                UndoRedo,
+                Toolbar,
+                Document.Assets.GetValueOrDefault,
+                (k, b) => Document.Assets[k] = b));
+        }
+
+        UndoRedo.Clear();
+        ActivePage = Pages[0];
+        ActivePage.Hydrate();
+        SyncDimensionInputsFromDimensions(new PageDimensions(ActivePage.Width, ActivePage.Height));
+        NotifyPageCountChanged();
     }
 }

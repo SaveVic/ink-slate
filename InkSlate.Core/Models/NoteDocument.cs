@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Windows.Ink;
 
 namespace InkSlate.Core.Models;
 
@@ -17,4 +18,7 @@ public sealed class NoteDocument
 
     [JsonIgnore]
     public Dictionary<string, byte[]> Assets { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public Dictionary<Guid, StrokeCollection> PageStrokes { get; } = [];
 }

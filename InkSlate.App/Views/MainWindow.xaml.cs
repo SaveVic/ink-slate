@@ -88,6 +88,24 @@ public partial class MainWindow : FluentWindow
         }
         else if (modifiers == ModifierKeys.Control)
         {
+            if (key == Key.S)
+            {
+                if (ViewModel.SaveCommand.CanExecute(null))
+                {
+                    ViewModel.SaveCommand.Execute(null);
+                    return true;
+                }
+            }
+
+            if (key == Key.O)
+            {
+                if (ViewModel.OpenCommand.CanExecute(null))
+                {
+                    ViewModel.OpenCommand.Execute(null);
+                    return true;
+                }
+            }
+
             if (key == Key.Enter)
             {
                 ViewModel.AddPageCommand.Execute(null);

@@ -49,7 +49,8 @@ public sealed partial class PageViewModel : ObservableObject
         UndoRedoManager? undoRedoManager = null,
         ToolbarViewModel? toolbar = null,
         Func<string, byte[]?>? assetResolver = null,
-        Action<string, byte[]>? assetRegistrar = null)
+        Action<string, byte[]>? assetRegistrar = null,
+        StrokeCollection? initialStrokes = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         Model = model;
@@ -61,6 +62,13 @@ public sealed partial class PageViewModel : ObservableObject
         _width = model.Width;
         _height = model.Height;
         _backgroundHex = model.BackgroundHex;
+
+        if (initialStrokes is { Count: > 0 })
+        {
+            using var ms = new MemoryStream();
+            initialStrokes.Save(ms, compress: true);
+            _compressedIsfBytes = ms.ToArray();
+        }
 
         _synchronizedElements = new SynchronizedCanvasElementList(this, model.Elements);
         foreach (var element in model.Elements)
@@ -267,6 +275,19 @@ public sealed partial class PageViewModel : ObservableObject
             Dehydrate();
             Hydrate();
         }
+    }
+
+    public void LoadStrokes(StrokeCollection? strokes)
+    {
+        if (strokes is null || strokes.Count == 0)
+        {
+            LoadIsfBytes(null);
+            return;
+        }
+
+        using var ms = new MemoryStream();
+        strokes.Save(ms, compress: true);
+        LoadIsfBytes(ms.ToArray());
     }
 
     public byte[]? ExportIsfBytes()

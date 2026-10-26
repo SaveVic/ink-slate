@@ -169,11 +169,13 @@
                     <!-- File & Export -->
                     <ui:Button x:Name="OpenButton"
                                Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding OpenCommand}"
                                ToolTip="Open (Ctrl+O)">
                         <ui:SymbolIcon Symbol="FolderOpen24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="SaveButton"
                                Style="{StaticResource ToolbarIconButtonStyle}"
+                               Command="{Binding SaveCommand}"
                                ToolTip="Save (Ctrl+S)">
                         <ui:SymbolIcon Symbol="Save24" FontSize="18" />
                     </ui:Button>

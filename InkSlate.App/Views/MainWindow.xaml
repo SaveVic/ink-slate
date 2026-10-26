@@ -261,18 +261,9 @@
                         <ui:SymbolIcon Symbol="TextFont24" FontSize="18" />
                     </ui:Button>
                     <ui:Button x:Name="ImageToolButton"
-                               Command="{Binding Toolbar.SelectToolCommand}"
-                               CommandParameter="{x:Static models:ToolMode.Image}"
+                               Command="{Binding InsertImageCommand}"
+                               Style="{StaticResource ToolbarIconButtonStyle}"
                                ToolTip="Image (I)">
-                        <ui:Button.Style>
-                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Toolbar.IsImageToolActive}" Value="True">
-                                        <Setter Property="Appearance" Value="Primary" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Image24" FontSize="18" />
                     </ui:Button>
 

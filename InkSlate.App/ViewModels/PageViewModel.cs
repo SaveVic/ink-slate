@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows;
 using System.Windows.Ink;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -43,12 +44,19 @@ public sealed partial class PageViewModel : ObservableObject
     [ObservableProperty]
     private StrokeCollection? _strokes;
 
-    public PageViewModel(NotePage model, UndoRedoManager? undoRedoManager = null, ToolbarViewModel? toolbar = null)
+    public PageViewModel(
+        NotePage model,
+        UndoRedoManager? undoRedoManager = null,
+        ToolbarViewModel? toolbar = null,
+        Func<string, byte[]?>? assetResolver = null,
+        Action<string, byte[]>? assetRegistrar = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         Model = model;
         UndoRedo = undoRedoManager;
         Toolbar = toolbar;
+        AssetResolver = assetResolver;
+        AssetRegistrar = assetRegistrar;
         _pageNumber = model.PageNumber;
         _width = model.Width;
         _height = model.Height;
@@ -57,7 +65,7 @@ public sealed partial class PageViewModel : ObservableObject
         _synchronizedElements = new SynchronizedCanvasElementList(this, model.Elements);
         foreach (var element in model.Elements)
         {
-            Elements.Add(new CanvasElementViewModel(element));
+            Elements.Add(CanvasElementViewModel.Create(element, AssetResolver));
         }
 
         if (UndoRedo is not null)
@@ -69,6 +77,8 @@ public sealed partial class PageViewModel : ObservableObject
     public NotePage Model { get; }
     public UndoRedoManager? UndoRedo { get; }
     public ToolbarViewModel? Toolbar { get; }
+    public Func<string, byte[]?>? AssetResolver { get; }
+    public Action<string, byte[]>? AssetRegistrar { get; }
     public Guid Id => Model.Id;
     public int CompressedIsfByteCount => _compressedIsfBytes?.Length ?? 0;
 
@@ -92,7 +102,7 @@ public sealed partial class PageViewModel : ObservableObject
             }
         }
 
-        var vm = new CanvasElementViewModel(element);
+        var vm = CanvasElementViewModel.Create(element, AssetResolver);
         Elements.Add(vm);
         Model.Elements.Add(element);
         IsDirty = true;
@@ -101,6 +111,76 @@ public sealed partial class PageViewModel : ObservableObject
         {
             UndoRedo.Record(new ElementAddedOperation(Id, _synchronizedElements, element));
         }
+    }
+
+    public ImageCanvasElementViewModel AddImageElement(
+        string assetKey,
+        System.Windows.Media.Imaging.BitmapSource frozenBitmap,
+        double x,
+        double y,
+        double width,
+        double height)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetKey);
+        ArgumentNullException.ThrowIfNull(frozenBitmap);
+
+        var model = new ImageCanvasElement
+        {
+            AssetKey = assetKey,
+            X = x,
+            Y = y,
+            Width = width,
+            Height = height
+        };
+
+        if (Elements.Count > 0)
+        {
+            var minZ = Elements.Min(e => e.ZIndex);
+            model.ZIndex = minZ - 1;
+        }
+
+        var vm = new ImageCanvasElementViewModel(model)
+        {
+            ImageSource = frozenBitmap
+        };
+
+        Elements.Add(vm);
+        Model.Elements.Add(model);
+        IsDirty = true;
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            UndoRedo.Record(new ElementAddedOperation(Id, _synchronizedElements, model));
+        }
+
+        return vm;
+    }
+
+    public void RegisterAsset(string assetKey, byte[] assetBytes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetKey);
+        ArgumentNullException.ThrowIfNull(assetBytes);
+        AssetRegistrar?.Invoke(assetKey, assetBytes);
+    }
+
+    public TextCanvasElementViewModel AddTextElement(Point position)
+    {
+        var model = new TextCanvasElement
+        {
+            X = Math.Max(0.0, position.X),
+            Y = Math.Max(0.0, position.Y),
+            Width = 220.0,
+            Height = 60.0,
+            Text = string.Empty,
+            FontSize = 18.0,
+            ForegroundHex = Toolbar?.SelectedPenColorHex ?? "#FF1E1E1E"
+        };
+
+        AddElement(model);
+        var vm = (TextCanvasElementViewModel)Elements.First(e => ReferenceEquals(e.Model, model));
+        vm.IsSelected = true;
+        vm.IsEditing = true;
+        return vm;
     }
 
     [RelayCommand]
@@ -236,6 +316,15 @@ public sealed partial class PageViewModel : ObservableObject
 
         hydratedStrokes.StrokesChanged += OnStrokesChanged;
         Strokes = hydratedStrokes;
+
+        foreach (var element in Elements)
+        {
+            if (element is ImageCanvasElementViewModel imageVm && imageVm.ImageSource is null)
+            {
+                imageVm.ResolveImage(AssetResolver);
+            }
+        }
+
         IsHydrated = true;
     }
 
@@ -293,7 +382,7 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         var insertIndex = Math.Clamp(index, 0, Elements.Count);
-        Elements.Insert(insertIndex, new CanvasElementViewModel(item));
+        Elements.Insert(insertIndex, CanvasElementViewModel.Create(item, AssetResolver));
     }
 
     private void OnSynchronizedElementRemoved(CanvasElement item)

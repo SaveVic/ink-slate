@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
@@ -8,6 +9,7 @@ using System.Windows.Shapes;
 using InkSlate.App.ViewModels;
 using InkSlate.Core.Ink;
 using InkSlate.Core.Models;
+using InkSlate.Core.Services;
 using InkSlate.Core.UndoRedo;
 
 namespace InkSlate.App.Controls;
@@ -19,7 +21,7 @@ public partial class PageCanvasControl : UserControl
             nameof(PageId),
             typeof(Guid),
             typeof(PageCanvasControl),
-            new PropertyMetadata(Guid.Empty));
+            new PropertyMetadata(Guid.Empty, OnPageIdPropertyChanged));
 
     public static readonly DependencyProperty PageStrokesProperty =
         DependencyProperty.Register(
@@ -36,7 +38,7 @@ public partial class PageCanvasControl : UserControl
             nameof(UndoRedoManager),
             typeof(UndoRedoManager),
             typeof(PageCanvasControl),
-            new PropertyMetadata(null));
+            new PropertyMetadata(null, OnUndoRedoManagerPropertyChanged));
 
     public static readonly DependencyProperty IsPageDirtyProperty =
         DependencyProperty.Register(
@@ -124,6 +126,7 @@ public partial class PageCanvasControl : UserControl
         AttachStrokesHandler(InternalInkCanvas.Strokes);
         InternalInkCanvas.StrokeCollected += OnStrokeCollected;
         RefreshEraserShape();
+        AllowDrop = true;
     }
 
     public Guid PageId
@@ -318,6 +321,31 @@ public partial class PageCanvasControl : UserControl
             var pos = e.GetPosition(this);
             EraseElementsAtPoint(pos);
         }
+        else if (ActiveToolMode == ToolMode.Text)
+        {
+            var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
+            if (hit is null)
+            {
+                var pos = e.GetPosition(InternalInkCanvas);
+                if (DataContext is PageViewModel pageVm)
+                {
+                    pageVm.AddTextElement(pos);
+                    e.Handled = true;
+                }
+            }
+        }
+        else if (ActiveToolMode is not ToolMode.Pen and not ToolMode.Highlighter)
+        {
+            var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
+            if (hit is null && PageElements is not null)
+            {
+                foreach (var el in PageElements)
+                {
+                    el.IsSelected = false;
+                    el.IsEditing = false;
+                }
+            }
+        }
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
@@ -359,6 +387,29 @@ public partial class PageCanvasControl : UserControl
     {
         base.OnStylusLeave(e);
         HideEraserCursor();
+    }
+
+    private static void OnPageIdPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control && e.NewValue is Guid newId)
+        {
+            foreach (var container in control._containers.Values)
+            {
+                container.PageId = newId;
+            }
+        }
+    }
+
+    private static void OnUndoRedoManagerPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control)
+        {
+            var mgr = e.NewValue as UndoRedoManager;
+            foreach (var container in control._containers.Values)
+            {
+                container.UndoRedo = mgr;
+            }
+        }
     }
 
     private static void OnPageStrokesPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -490,7 +541,7 @@ public partial class PageCanvasControl : UserControl
             return;
         }
 
-        var container = new CanvasElementContainer(element)
+        var container = new CanvasElementContainer(element, UndoRedoManager, PageId)
         {
             IsHitTestVisible = ActiveToolMode is ToolMode.Text or ToolMode.Image
         };
@@ -676,6 +727,127 @@ public partial class PageCanvasControl : UserControl
         if (e.Stroke is not null)
         {
             SplitCollectedStroke(e.Stroke);
+        }
+    }
+
+    private void OnInlineTextBoxIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox textBox && textBox.IsVisible)
+        {
+            textBox.Focus();
+            textBox.CaretIndex = textBox.Text.Length;
+        }
+    }
+
+    private void OnInlineTextBoxLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox && textBox.DataContext is TextCanvasElementViewModel textVm)
+        {
+            textVm.IsEditing = false;
+
+            if (string.IsNullOrWhiteSpace(textVm.Text))
+            {
+                if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(textVm))
+                {
+                    RemoveElementCommand.Execute(textVm);
+                }
+                else if (DataContext is PageViewModel pageVm)
+                {
+                    pageVm.RemoveElementCommand.Execute(textVm);
+                }
+            }
+        }
+    }
+
+    protected override void OnPreviewDragOver(DragEventArgs e)
+    {
+        base.OnPreviewDragOver(e);
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                var ext = System.IO.Path.GetExtension(files[0]).ToLowerInvariant();
+                if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp")
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    protected override void OnPreviewDrop(DragEventArgs e)
+    {
+        base.OnPreviewDrop(e);
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+            {
+                foreach (var file in files)
+                {
+                    if (string.IsNullOrWhiteSpace(file))
+                    {
+                        continue;
+                    }
+
+                    var ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
+                    if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp")
+                    {
+                        var pos = e.GetPosition(InternalInkCanvas);
+                        if (DataContext is PageViewModel pageVm)
+                        {
+                            try
+                            {
+                                var result = MediaIngestionService.IngestFile(file);
+                                pageVm.RegisterAsset(result.AssetKey, result.SanitizedBytes);
+
+                                var maxTargetW = Math.Min(pageVm.Width * 0.75, 800.0);
+                                var maxTargetH = Math.Min(pageVm.Height * 0.75, 800.0);
+                                var displayW = result.PixelWidth;
+                                var displayH = result.PixelHeight;
+
+                                if (displayW > maxTargetW)
+                                {
+                                    var scale = maxTargetW / displayW;
+                                    displayW = maxTargetW;
+                                    displayH *= scale;
+                                }
+
+                                if (displayH > maxTargetH)
+                                {
+                                    var scale = maxTargetH / displayH;
+                                    displayH = maxTargetH;
+                                    displayW *= scale;
+                                }
+
+                                displayW = Math.Max(20.0, displayW);
+                                displayH = Math.Max(20.0, displayH);
+
+                                pageVm.AddImageElement(
+                                    result.AssetKey,
+                                    result.FrozenBitmap,
+                                    Math.Max(0.0, pos.X),
+                                    Math.Max(0.0, pos.Y),
+                                    displayW,
+                                    displayH);
+                            }
+                            catch (Exception)
+                            {
+                                // Ingestion failed (oversized or invalid header)
+                            }
+                        }
+
+                        e.Handled = true;
+                        break;
+                    }
+                }
+            }
         }
     }
 }

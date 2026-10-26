@@ -82,7 +82,7 @@ public partial class MainWindow : FluentWindow
             }
             else if (key == Key.I)
             {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Image);
+                ViewModel.InsertImageCommand.Execute(null);
                 return true;
             }
         }
@@ -97,6 +97,12 @@ public partial class MainWindow : FluentWindow
             if (key is Key.D0 or Key.NumPad0)
             {
                 ViewModel.ResetZoomCommand.Execute(null);
+                return true;
+            }
+
+            if (key == Key.V)
+            {
+                ViewModel.PasteClipboardCommand.Execute(null);
                 return true;
             }
 

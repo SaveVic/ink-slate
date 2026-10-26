@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace InkSlate.Core.Models;
 
 public sealed class NoteDocument
@@ -12,5 +14,7 @@ public sealed class NoteDocument
     public double DefaultPageWidth { get; set; } = PageDimensions.A4.Width;
     public double DefaultPageHeight { get; set; } = PageDimensions.A4.Height;
     public List<NotePage> Pages { get; init; } = [];
-}
 
+    [JsonIgnore]
+    public Dictionary<string, byte[]> Assets { get; } = new(StringComparer.OrdinalIgnoreCase);
+}

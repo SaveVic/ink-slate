@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:cel="clr-namespace:InkSlate.Core.Models.CanvasElements;assembly=InkSlate.Core"
+             xmlns:vm="clr-namespace:InkSlate.App.ViewModels"
              xmlns:converters="clr-namespace:InkSlate.App.Converters"
              ClipToBounds="True"
              Stylus.IsPressAndHoldEnabled="False"
@@ -12,6 +13,192 @@
     <UserControl.Resources>
         <converters:HexToFrozenBrushConverter x:Key="HexToFrozenBrushConverter" />
 
+        <DropShadowEffect x:Key="MiniBarShadow"
+                          BlurRadius="6"
+                          ShadowDepth="2"
+                          Direction="270"
+                          Color="#40000000"
+                          Opacity="0.25"
+                          RenderingBias="Performance" />
+
+        <!-- TextCanvasElementViewModel Template -->
+        <DataTemplate DataType="{x:Type vm:TextCanvasElementViewModel}">
+            <Grid Background="Transparent">
+                <!-- Static TextBlock (Unfocused / Read-only) -->
+                <TextBlock x:Name="StaticTextBlock"
+                           Text="{Binding Text}"
+                           FontFamily="{Binding FontFamily}"
+                           FontSize="{Binding FontSize}"
+                           Foreground="{Binding ForegroundHex, Converter={StaticResource HexToFrozenBrushConverter}}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Stretch"
+                           IsHitTestVisible="False" />
+
+                <!-- Editable In-Place Container (Focused / Editing) -->
+                <Grid x:Name="EditingGrid" Visibility="Collapsed">
+                    <!-- Floating Mini-Bar Pill -->
+                    <Border Canvas.ZIndex="100"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Margin="0,-36,0,0"
+                            Background="#F0FFFFFF"
+                            BorderBrush="#40000000"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="4,2"
+                            Effect="{StaticResource MiniBarShadow}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Decrease Font Size -->
+                            <Button Command="{Binding DecreaseFontSizeCommand}"
+                                    Content="A-"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Width="26"
+                                    Height="24"
+                                    Margin="2,0"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    ToolTip="Decrease Font Size" />
+                            <!-- Increase Font Size -->
+                            <Button Command="{Binding IncreaseFontSizeCommand}"
+                                    Content="A+"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Width="26"
+                                    Height="24"
+                                    Margin="2,0"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    ToolTip="Increase Font Size" />
+
+                            <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
+
+                            <!-- Bold Button -->
+                            <Button Command="{Binding ToggleBoldCommand}"
+                                    Content="B"
+                                    FontWeight="Bold"
+                                    Width="24"
+                                    Height="24"
+                                    Margin="1,0"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    ToolTip="Bold" />
+
+                            <!-- Italic Button -->
+                            <Button Command="{Binding ToggleItalicCommand}"
+                                    Content="I"
+                                    FontStyle="Italic"
+                                    FontWeight="SemiBold"
+                                    Width="24"
+                                    Height="24"
+                                    Margin="1,0"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    ToolTip="Italic" />
+
+                            <Rectangle Width="1" Height="14" Fill="#30000000" Margin="3,0" />
+
+                            <!-- Quick Color Swatches -->
+                            <Button Command="{Binding SetForegroundHexCommand}"
+                                    CommandParameter="#FF1E1E1E"
+                                    Width="16" Height="16" Margin="2,0" Padding="0"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Charcoal Black">
+                                <Ellipse Width="12" Height="12" Fill="#FF1E1E1E" />
+                            </Button>
+                            <Button Command="{Binding SetForegroundHexCommand}"
+                                    CommandParameter="#FF2563EB"
+                                    Width="16" Height="16" Margin="2,0" Padding="0"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Cobalt Blue">
+                                <Ellipse Width="12" Height="12" Fill="#FF2563EB" />
+                            </Button>
+                            <Button Command="{Binding SetForegroundHexCommand}"
+                                    CommandParameter="#FFDC2626"
+                                    Width="16" Height="16" Margin="2,0" Padding="0"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Crimson Red">
+                                <Ellipse Width="12" Height="12" Fill="#FFDC2626" />
+                            </Button>
+                            <Button Command="{Binding SetForegroundHexCommand}"
+                                    CommandParameter="#FF16A34A"
+                                    Width="16" Height="16" Margin="2,0" Padding="0"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Emerald Green">
+                                <Ellipse Width="12" Height="12" Fill="#FF16A34A" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- In-Place TextBox with border -->
+                    <TextBox x:Name="InlineTextBox"
+                             Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="{Binding FontFamily}"
+                             FontSize="{Binding FontSize}"
+                             Foreground="{Binding ForegroundHex, Converter={StaticResource HexToFrozenBrushConverter}}"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             Background="Transparent"
+                             BorderBrush="#FF0078D4"
+                             BorderThickness="1"
+                             Padding="2"
+                             VerticalAlignment="Stretch"
+                             HorizontalAlignment="Stretch"
+                             IsVisibleChanged="OnInlineTextBoxIsVisibleChanged"
+                             LostFocus="OnInlineTextBoxLostFocus" />
+                </Grid>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsBold}" Value="True">
+                    <Setter TargetName="StaticTextBlock" Property="FontWeight" Value="Bold" />
+                    <Setter TargetName="InlineTextBox" Property="FontWeight" Value="Bold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsItalic}" Value="True">
+                    <Setter TargetName="StaticTextBlock" Property="FontStyle" Value="Italic" />
+                    <Setter TargetName="InlineTextBox" Property="FontStyle" Value="Italic" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter TargetName="StaticTextBlock" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="EditingGrid" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ImageCanvasElementViewModel Template -->
+        <DataTemplate DataType="{x:Type vm:ImageCanvasElementViewModel}">
+            <Grid Background="Transparent">
+                <Image Source="{Binding ImageSource}"
+                       Stretch="Fill"
+                       Clip="{Binding ClipGeometry}" />
+                <Border BorderBrush="#33000000"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Background="#08000000">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ImageSource}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <ui:SymbolIcon Symbol="Image24"
+                                   FontSize="24"
+                                   Foreground="#66000000"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Fallback Legacy Model Templates -->
         <DataTemplate DataType="{x:Type cel:TextCanvasElement}">
             <TextBlock x:Name="ElementTextBlock"
                        Text="{Binding Text, Mode=OneTime}"

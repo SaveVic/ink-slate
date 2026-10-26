@@ -1,12 +1,19 @@
 using System.Windows;
-using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using InkSlate.Core.Models.CanvasElements;
 
 namespace InkSlate.App.ViewModels;
 
-public sealed partial class CanvasElementViewModel : ObservableObject
+public class CanvasElementViewModel : ObservableObject
 {
+    private double _x;
+    private double _y;
+    private double _width;
+    private double _height;
+    private int _zIndex;
+    private bool _isSelected;
+    private bool _isEditing;
+
     public CanvasElementViewModel(CanvasElement model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -25,27 +32,81 @@ public sealed partial class CanvasElementViewModel : ObservableObject
     public bool IsImage => Model is ImageCanvasElement;
     public bool IsText => Model is TextCanvasElement;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Bounds))]
-    private double _x;
+    public double X
+    {
+        get => _x;
+        set
+        {
+            if (SetProperty(ref _x, value))
+            {
+                Model.X = value;
+                OnPropertyChanged(nameof(Bounds));
+            }
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Bounds))]
-    private double _y;
+    public double Y
+    {
+        get => _y;
+        set
+        {
+            if (SetProperty(ref _y, value))
+            {
+                Model.Y = value;
+                OnPropertyChanged(nameof(Bounds));
+            }
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Bounds))]
-    private double _width;
+    public double Width
+    {
+        get => _width;
+        set
+        {
+            if (SetProperty(ref _width, value))
+            {
+                Model.Width = value;
+                OnPropertyChanged(nameof(Bounds));
+            }
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Bounds))]
-    private double _height;
+    public double Height
+    {
+        get => _height;
+        set
+        {
+            if (SetProperty(ref _height, value))
+            {
+                Model.Height = value;
+                OnPropertyChanged(nameof(Bounds));
+            }
+        }
+    }
 
-    [ObservableProperty]
-    private int _zIndex;
+    public int ZIndex
+    {
+        get => _zIndex;
+        set
+        {
+            if (SetProperty(ref _zIndex, value))
+            {
+                Model.ZIndex = value;
+            }
+        }
+    }
 
-    [ObservableProperty]
-    private ImageSource? _imageSource;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+
+    public virtual bool IsEditing
+    {
+        get => _isEditing;
+        set => SetProperty(ref _isEditing, value);
+    }
 
     public Rect Bounds => new(X, Y, Math.Max(0.0, Width), Math.Max(0.0, Height));
 
@@ -58,7 +119,7 @@ public sealed partial class CanvasElementViewModel : ObservableObject
                point.Y <= Y + Math.Max(0.0, Height) + r;
     }
 
-    public void RefreshFromModel()
+    public virtual void RefreshFromModel()
     {
         X = Model.X;
         Y = Model.Y;
@@ -67,9 +128,11 @@ public sealed partial class CanvasElementViewModel : ObservableObject
         ZIndex = Model.ZIndex;
     }
 
-    partial void OnXChanged(double value) => Model.X = value;
-    partial void OnYChanged(double value) => Model.Y = value;
-    partial void OnWidthChanged(double value) => Model.Width = value;
-    partial void OnHeightChanged(double value) => Model.Height = value;
-    partial void OnZIndexChanged(int value) => Model.ZIndex = value;
+    public static CanvasElementViewModel Create(CanvasElement model, Func<string, byte[]?>? assetResolver = null) =>
+        model switch
+        {
+            TextCanvasElement text => new TextCanvasElementViewModel(text),
+            ImageCanvasElement image => new ImageCanvasElementViewModel(image, assetResolver),
+            _ => new CanvasElementViewModel(model)
+        };
 }

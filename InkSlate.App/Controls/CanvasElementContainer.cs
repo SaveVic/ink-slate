@@ -1,29 +1,49 @@
 using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using InkSlate.App.ViewModels;
 using InkSlate.Core.Serialization;
+using InkSlate.Core.UndoRedo;
 
 namespace InkSlate.App.Controls;
 
 public sealed class CanvasElementContainer : ContentControl
 {
-    public CanvasElementContainer(CanvasElementViewModel element)
+    private CanvasElementAdorner? _adorner;
+    private bool _isDragging;
+    private Point _dragStartMouse;
+    private Rect _dragInitialBounds;
+
+    public CanvasElementContainer(
+        CanvasElementViewModel element,
+        UndoRedoManager? undoRedo = null,
+        Guid pageId = default)
     {
         ArgumentNullException.ThrowIfNull(element);
 
         Element = element;
+        UndoRedo = undoRedo;
+        PageId = pageId;
+
         DataContext = element;
-        Content = element.Model;
+        Content = element;
         Focusable = false;
         IsTabStop = false;
-        ClipToBounds = true;
+        ClipToBounds = false;
         SnapsToDevicePixels = true;
 
         ApplyGeometry();
         Element.PropertyChanged += OnElementPropertyChanged;
+
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public CanvasElementViewModel Element { get; }
+    public UndoRedoManager? UndoRedo { get; set; }
+    public Guid PageId { get; set; }
 
     public void ApplyGeometry()
     {
@@ -37,11 +57,123 @@ public sealed class CanvasElementContainer : ContentControl
         Width = width;
         Height = height;
         Panel.SetZIndex(this, Element.ZIndex);
+
+        _adorner?.InvalidateVisual();
     }
 
     public void Detach()
     {
         Element.PropertyChanged -= OnElementPropertyChanged;
+        DetachAdorner();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (Element.IsSelected)
+        {
+            AttachAdorner();
+        }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        DetachAdorner();
+    }
+
+    private void AttachAdorner()
+    {
+        if (_adorner is not null)
+        {
+            return;
+        }
+
+        var layer = AdornerLayer.GetAdornerLayer(this);
+        if (layer is not null)
+        {
+            _adorner = new CanvasElementAdorner(this, Element, UndoRedo, PageId);
+            layer.Add(_adorner);
+        }
+    }
+
+    private void DetachAdorner()
+    {
+        if (_adorner is not null)
+        {
+            var layer = AdornerLayer.GetAdornerLayer(this);
+            layer?.Remove(_adorner);
+            _adorner = null;
+        }
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+
+        if (e.OriginalSource is TextBox or Wpf.Ui.Controls.TextBox)
+        {
+            return;
+        }
+
+        Element.IsSelected = true;
+
+        if (e.ClickCount == 2 && Element is TextCanvasElementViewModel textVm)
+        {
+            textVm.IsEditing = true;
+            e.Handled = true;
+            return;
+        }
+
+        var parent = VisualParent as UIElement;
+        if (parent is not null)
+        {
+            _isDragging = true;
+            _dragStartMouse = e.GetPosition(parent);
+            _dragInitialBounds = new Rect(Element.X, Element.Y, Element.Width, Element.Height);
+            CaptureMouse();
+            e.Handled = true;
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+
+        if (_isDragging && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var parent = VisualParent as UIElement;
+            if (parent is not null)
+            {
+                var currentMouse = e.GetPosition(parent);
+                var deltaX = currentMouse.X - _dragStartMouse.X;
+                var deltaY = currentMouse.Y - _dragStartMouse.Y;
+
+                Element.X = Math.Max(0.0, _dragInitialBounds.X + deltaX);
+                Element.Y = Math.Max(0.0, _dragInitialBounds.Y + deltaY);
+                e.Handled = true;
+            }
+        }
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+
+        if (_isDragging)
+        {
+            _isDragging = false;
+            ReleaseMouseCapture();
+
+            var newBounds = new Rect(Element.X, Element.Y, Element.Width, Element.Height);
+            if (newBounds != _dragInitialBounds)
+            {
+                if (UndoRedo is not null && !UndoRedo.IsReplaying)
+                {
+                    UndoRedo.Record(new ElementTransformedOperation(PageId, Element.Model, _dragInitialBounds, newBounds));
+                }
+            }
+
+            e.Handled = true;
+        }
     }
 
     private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -55,6 +187,17 @@ public sealed class CanvasElementContainer : ContentControl
         {
             ApplyGeometry();
         }
+        else if (e.PropertyName == nameof(CanvasElementViewModel.IsSelected))
+        {
+            if (Element.IsSelected)
+            {
+                AttachAdorner();
+            }
+            else
+            {
+                DetachAdorner();
+            }
+        }
     }
 
     private static double ClampFinite(double value, double min, double max, double fallback)
@@ -67,4 +210,3 @@ public sealed class CanvasElementContainer : ContentControl
         return Math.Clamp(value, min, max);
     }
 }
-

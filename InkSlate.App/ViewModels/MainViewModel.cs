@@ -1,8 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
+using System.Windows;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkSlate.Core.Models;
+using InkSlate.Core.Services;
 using InkSlate.Core.UndoRedo;
 
 namespace InkSlate.App.ViewModels;
@@ -96,7 +100,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var page in document.Pages)
         {
-            Pages.Add(new PageViewModel(page, UndoRedo, Toolbar));
+            Pages.Add(new PageViewModel(page, UndoRedo, Toolbar, Document.Assets.GetValueOrDefault, (k, b) => Document.Assets[k] = b));
         }
 
         ActivePage = Pages[0];
@@ -278,7 +282,7 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         Document.Pages.Add(model);
-        var pageVm = new PageViewModel(model, UndoRedo, Toolbar);
+        var pageVm = new PageViewModel(model, UndoRedo, Toolbar, Document.Assets.GetValueOrDefault, (k, b) => Document.Assets[k] = b);
         Pages.Add(pageVm);
         ActivePage = pageVm;
         NotifyPageCountChanged();
@@ -478,6 +482,132 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static bool AreClose(PageDimensions a, PageDimensions b, double tolerance) =>
         Math.Abs(a.Width - b.Width) <= tolerance && Math.Abs(a.Height - b.Height) <= tolerance;
+
+    [RelayCommand]
+    public void InsertImage()
+    {
+        if (ActivePage is null)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Insert Image",
+            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All Files (*.*)|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            InsertImageFile(dialog.FileName);
+        }
+    }
+
+    public void InsertImageFile(string filePath)
+    {
+        if (ActivePage is null || string.IsNullOrWhiteSpace(filePath))
+        {
+            return;
+        }
+
+        var result = MediaIngestionService.IngestFile(filePath);
+        AddIngestedMediaToActivePage(result);
+    }
+
+    public void InsertImageBitmap(BitmapSource bitmap)
+    {
+        if (ActivePage is null)
+        {
+            return;
+        }
+
+        var result = MediaIngestionService.IngestBitmapSource(bitmap);
+        AddIngestedMediaToActivePage(result);
+    }
+
+    [RelayCommand]
+    public void PasteClipboard()
+    {
+        if (ActivePage is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Clipboard.ContainsImage())
+            {
+                var bitmap = Clipboard.GetImage();
+                if (bitmap is not null)
+                {
+                    InsertImageBitmap(bitmap);
+                    return;
+                }
+            }
+
+            if (Clipboard.ContainsFileDropList())
+            {
+                var files = Clipboard.GetFileDropList();
+                foreach (string? file in files)
+                {
+                    if (string.IsNullOrWhiteSpace(file))
+                    {
+                        continue;
+                    }
+
+                    var ext = Path.GetExtension(file).ToLowerInvariant();
+                    if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp")
+                    {
+                        InsertImageFile(file);
+                        return;
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Clipboard access may fail if locked by another application
+        }
+    }
+
+    private void AddIngestedMediaToActivePage(IngestedMediaResult result)
+    {
+        if (ActivePage is null)
+        {
+            return;
+        }
+
+        Document.Assets[result.AssetKey] = result.SanitizedBytes;
+
+        var maxTargetW = Math.Min(ActivePage.Width * 0.75, 800.0);
+        var maxTargetH = Math.Min(ActivePage.Height * 0.75, 800.0);
+
+        var displayW = result.PixelWidth;
+        var displayH = result.PixelHeight;
+
+        if (displayW > maxTargetW)
+        {
+            var scale = maxTargetW / displayW;
+            displayW = maxTargetW;
+            displayH *= scale;
+        }
+
+        if (displayH > maxTargetH)
+        {
+            var scale = maxTargetH / displayH;
+            displayH = maxTargetH;
+            displayW *= scale;
+        }
+
+        displayW = Math.Max(20.0, displayW);
+        displayH = Math.Max(20.0, displayH);
+
+        var x = Math.Max(0.0, (ActivePage.Width - displayW) / 2.0);
+        var y = Math.Max(0.0, (ActivePage.Height - displayH) / 2.0);
+
+        ActivePage.AddImageElement(result.AssetKey, result.FrozenBitmap, x, y, displayW, displayH);
+    }
 
     private void NotifyPageCountChanged()
     {

@@ -79,6 +79,11 @@ public static partial class DocumentValidator
     {
         ArgumentNullException.ThrowIfNull(page);
 
+        if (page.Id == Guid.Empty)
+        {
+            page.Id = Guid.CreateVersion7();
+        }
+
         if (page.PageNumber <= 0)
         {
             page.PageNumber = Math.Max(1, fallbackPageNumber);
@@ -110,6 +115,11 @@ public static partial class DocumentValidator
     public static void SanitizeElement(CanvasElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
+
+        if (element.Id == Guid.Empty)
+        {
+            element.Id = Guid.CreateVersion7();
+        }
 
         element.X = ClampFinite(element.X, MinElementCoordinateDip, MaxElementCoordinateDip, 0.0);
         element.Y = ClampFinite(element.Y, MinElementCoordinateDip, MaxElementCoordinateDip, 0.0);

@@ -6,7 +6,7 @@ public sealed class NotePage
 {
     public const string DefaultBackgroundHex = "#FFFFFFFF";
 
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public int PageNumber { get; set; } = 1;
     public double Width { get; set; } = PageDimensions.A4.Width;
     public double Height { get; set; } = PageDimensions.A4.Height;

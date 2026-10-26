@@ -186,7 +186,24 @@ public static class FilePackageService
             bufferSize: 64 * 1024,
             useAsync: true);
 
-        using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read, leaveOpen: false);
+        return await LoadAsync(fileStream, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Loads a .notex document package from a readable stream, enforcing archive size limits, entry counts,
+    /// strict path security allowlists, bounded decompression streams, and defensive ink recovery.
+    /// </summary>
+    public static async Task<NoteDocument> LoadAsync(Stream packageStream, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(packageStream);
+
+        if (packageStream.CanSeek && packageStream.Length > MaxArchiveFileSizeBytes)
+        {
+            throw new InvalidDataException(
+                $"Package stream size ({packageStream.Length} bytes) exceeds maximum allowed size of {MaxArchiveFileSizeBytes / (1024 * 1024)} MB.");
+        }
+
+        using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
 
         if (archive.Entries.Count > MaxArchiveEntryCount)
         {

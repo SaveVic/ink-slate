@@ -195,6 +195,79 @@ public sealed class PdfExportServiceTests : IDisposable
     }
 
     [Fact]
+    public void Export_A4DocumentWithStrokesAndText_VerifiesHeaderLengthPageCountAndDimensions()
+    {
+        var doc = new NoteDocument
+        {
+            Title = "A4 Verification Document",
+            DefaultPageWidth = PageDimensions.A4.Width,
+            DefaultPageHeight = PageDimensions.A4.Height
+        };
+
+        var page = new NotePage
+        {
+            PageNumber = 1,
+            Width = PageDimensions.A4.Width,
+            Height = PageDimensions.A4.Height,
+            BackgroundHex = "#FFFFFFFF"
+        };
+
+        page.Elements.Add(new TextCanvasElement
+        {
+            X = 50,
+            Y = 50,
+            Width = 300,
+            Height = 40,
+            Text = "A4 Geometry Verification",
+            FontSize = 18.0
+        });
+
+        var stroke = new Stroke(new StylusPointCollection
+        {
+            new StylusPoint(100, 100),
+            new StylusPoint(200, 200)
+        });
+        var strokes = new StrokeCollection { stroke };
+
+        doc.Pages.Add(page);
+
+        using var ms = new MemoryStream();
+        PdfExportService.Export(doc, [0], ms, strokesProvider: _ => strokes);
+
+        Assert.True(ms.Length > 0);
+        var bytes = ms.ToArray();
+
+        // 1. Signature check
+        Assert.Equal((byte)'%', bytes[0]);
+        Assert.Equal((byte)'P', bytes[1]);
+        Assert.Equal((byte)'D', bytes[2]);
+        Assert.Equal((byte)'F', bytes[3]);
+        Assert.Equal((byte)'-', bytes[4]);
+
+        var pdfText = System.Text.Encoding.ASCII.GetString(bytes);
+
+        // 2. Page count check
+        Assert.Contains("/Count 1", pdfText, StringComparison.Ordinal);
+
+        // 3. A4 dimensions check in PDF MediaBox: [0 0 793.5 1122.75]
+        Assert.Contains("/MediaBox [0 0 793.5 1122.75]", pdfText, StringComparison.Ordinal);
+
+        // 4. Multi-page count check
+        var page2 = new NotePage
+        {
+            PageNumber = 2,
+            Width = PageDimensions.A4.Width,
+            Height = PageDimensions.A4.Height
+        };
+        doc.Pages.Add(page2);
+
+        using var ms2 = new MemoryStream();
+        PdfExportService.Export(doc, [0, 1], ms2);
+        var multiPdfText = System.Text.Encoding.ASCII.GetString(ms2.ToArray());
+        Assert.Contains("/Count 2", multiPdfText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Export_PageRangeSubsetting_ExportsOnlyRequestedPages()
     {
         var doc = new NoteDocument();

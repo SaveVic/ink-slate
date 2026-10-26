@@ -7,7 +7,7 @@ namespace InkSlate.Core.Models.CanvasElements;
 [JsonDerivedType(typeof(ImageCanvasElement), typeDiscriminator: "image")]
 public abstract class CanvasElement
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public double X { get; set; }
     public double Y { get; set; }
     public double Width { get; set; } = 200.0;

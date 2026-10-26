@@ -75,6 +75,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPageSetupOpen;
 
+    partial void OnIsPageSetupOpenChanged(bool value)
+    {
+        if (value)
+        {
+            Toolbar.IsPenOptionsOpen = false;
+            Toolbar.IsEraserOptionsOpen = false;
+            Toolbar.IsLassoOptionsOpen = false;
+            Toolbar.IsTextOptionsOpen = false;
+            IsPdfExportOpen = false;
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsA4Selected))]
     [NotifyPropertyChangedFor(nameof(IsLetterSelected))]
@@ -230,6 +242,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isPdfExportOpen;
+
+    partial void OnIsPdfExportOpenChanged(bool value)
+    {
+        if (value)
+        {
+            Toolbar.IsPenOptionsOpen = false;
+            Toolbar.IsEraserOptionsOpen = false;
+            Toolbar.IsLassoOptionsOpen = false;
+            Toolbar.IsTextOptionsOpen = false;
+            IsPageSetupOpen = false;
+        }
+    }
 
     [ObservableProperty]
     private bool _isExportingPdf;

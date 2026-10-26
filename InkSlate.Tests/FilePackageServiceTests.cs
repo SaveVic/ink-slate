@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows.Ink;
 using System.Windows.Input;
+using CsCheck;
 using InkSlate.App.ViewModels;
 using InkSlate.Core.Models;
 using InkSlate.Core.Models.CanvasElements;
@@ -344,6 +345,147 @@ public sealed class FilePackageServiceTests : IDisposable
         Assert.Single(loadedDoc.Pages);
         Assert.True(loadedDoc.PageStrokes.TryGetValue(pageId, out var strokes));
         Assert.Empty(strokes); // Defensively recovered as empty strokes
+    }
+
+    [Fact]
+    public async Task LoadAsync_InMemoryZipSlipTraversal_ThrowsInvalidDataExceptionAndTouchesZeroDiskFiles()
+    {
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var manifestEntry = zip.CreateEntry("manifest.json");
+            using (var stream = manifestEntry.Open())
+            {
+                var doc = new NoteDocument();
+                JsonSerializer.Serialize(stream, doc, InkSlateJsonContext.Default.NoteDocument);
+            }
+
+            var evilEntry = zip.CreateEntry("../../evil.txt");
+            using (var stream = evilEntry.Open())
+            {
+                stream.Write("malicious payload"u8);
+            }
+        }
+
+        ms.Position = 0;
+        var initialFileCount = Directory.GetFiles(_testDirectory).Length;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => FilePackageService.LoadAsync(ms));
+
+        // Zero files created/touched on disk
+        Assert.Equal(initialFileCount, Directory.GetFiles(_testDirectory).Length);
+        Assert.False(File.Exists(Path.Combine(_testDirectory, "evil.txt")));
+        Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(_testDirectory)!, "evil.txt")));
+    }
+
+    [Fact]
+    public async Task LoadAsync_InMemoryDecompressionBombManifest_AbortsAt5MbThreshold()
+    {
+        // 1. Direct stream test: 20 MB stream exceeds 5 MB threshold
+        var rawData = new byte[20 * 1024 * 1024];
+        using (var rawMs = new MemoryStream(rawData))
+        using (var bounded = new BoundedReadStream(rawMs, maxBytes: FilePackageService.MaxManifestSizeBytes))
+        {
+            var buffer = new byte[64 * 1024];
+            Assert.Throws<InvalidDataException>(() =>
+            {
+                while (bounded.Read(buffer, 0, buffer.Length) > 0) { }
+            });
+        }
+
+        // 2. In-memory synthetic ZIP bomb: 20 MB of compressible JSON inside manifest.json
+        using var zipMs = new MemoryStream();
+        using (var zip = new ZipArchive(zipMs, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var manifestEntry = zip.CreateEntry("manifest.json", CompressionLevel.Optimal);
+            using var stream = manifestEntry.Open();
+            stream.Write("{\"title\":\""u8);
+            var repeatedChunk = new byte[64 * 1024];
+            Array.Fill(repeatedChunk, (byte)'A');
+            for (var i = 0; i < 320; i++) // 320 * 64 KB = 20.48 MB
+            {
+                stream.Write(repeatedChunk);
+            }
+            stream.Write("\"}"u8);
+        }
+
+        zipMs.Position = 0;
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(() => FilePackageService.LoadAsync(zipMs));
+        Assert.Contains("quota", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LoadAsync_InMemoryTruncatedAndRandomIsfBytes_GracefullyRecoversEmptyStrokes()
+    {
+        // Part 1: Truncated valid ISF bytes
+        var pageId = Guid.NewGuid();
+        var stroke = new Stroke(new StylusPointCollection { new StylusPoint(10, 10), new StylusPoint(50, 50) });
+        var validStrokes = new StrokeCollection { stroke };
+
+        byte[] validIsfBytes;
+        using (var isfMs = new MemoryStream())
+        {
+            validStrokes.Save(isfMs);
+            validIsfBytes = isfMs.ToArray();
+        }
+
+        // Truncate to half length
+        var truncatedBytes = validIsfBytes[..(validIsfBytes.Length / 2)];
+
+        using var zipMs = new MemoryStream();
+        using (var zip = new ZipArchive(zipMs, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var doc = new NoteDocument();
+            doc.Pages.Add(new NotePage { Id = pageId, PageNumber = 1, IsfEntryPath = $"pages/{pageId:D}.isf" });
+
+            var manifestEntry = zip.CreateEntry("manifest.json");
+            using (var stream = manifestEntry.Open())
+            {
+                JsonSerializer.Serialize(stream, doc, InkSlateJsonContext.Default.NoteDocument);
+            }
+
+            var isfEntry = zip.CreateEntry($"pages/{pageId:D}.isf");
+            using (var stream = isfEntry.Open())
+            {
+                stream.Write(truncatedBytes);
+            }
+        }
+
+        zipMs.Position = 0;
+        var loadedDoc = await FilePackageService.LoadAsync(zipMs);
+        Assert.NotNull(loadedDoc);
+        Assert.Single(loadedDoc.Pages);
+        Assert.True(loadedDoc.PageStrokes.TryGetValue(pageId, out var recoveredStrokes));
+        Assert.Empty(recoveredStrokes);
+
+        // Part 2: CsCheck property fuzzing with random byte arrays inside ISF entry
+        Gen.Byte.Array[1, 512].Sample(randomBytes =>
+        {
+            using var fuzzZipMs = new MemoryStream();
+            using (var zip = new ZipArchive(fuzzZipMs, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                var fuzzDoc = new NoteDocument();
+                fuzzDoc.Pages.Add(new NotePage { Id = pageId, PageNumber = 1, IsfEntryPath = $"pages/{pageId:D}.isf" });
+
+                var manifestEntry = zip.CreateEntry("manifest.json");
+                using (var stream = manifestEntry.Open())
+                {
+                    JsonSerializer.Serialize(stream, fuzzDoc, InkSlateJsonContext.Default.NoteDocument);
+                }
+
+                var isfEntry = zip.CreateEntry($"pages/{pageId:D}.isf");
+                using (var stream = isfEntry.Open())
+                {
+                    stream.Write(randomBytes);
+                }
+            }
+
+            fuzzZipMs.Position = 0;
+            var fuzzedLoadedDoc = FilePackageService.LoadAsync(fuzzZipMs).GetAwaiter().GetResult();
+            Assert.NotNull(fuzzedLoadedDoc);
+            Assert.True(fuzzedLoadedDoc.PageStrokes.TryGetValue(pageId, out var fuzzedStrokes));
+            Assert.NotNull(fuzzedStrokes);
+        });
     }
 
     [Fact]

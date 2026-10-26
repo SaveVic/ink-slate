@@ -190,6 +190,71 @@ public sealed class PageRangeParserTests
     }
 
     [Fact]
+    public void CsCheck_RandomPageSets_RoundTripExactZeroBasedIndices()
+    {
+        Gen.Int[1, 100].SelectMany(totalPages =>
+        {
+            return Gen.Int[1, totalPages].Array[1, 25].Select(rawPages =>
+            {
+                var sortedDistinct = rawPages.Distinct().OrderBy(p => p).ToList();
+                var expectedZeroBased = sortedDistinct.Select(p => p - 1).ToArray();
+
+                // Group contiguous sequences into range tokens or single tokens
+                var tokens = new List<string>();
+                var i = 0;
+                while (i < sortedDistinct.Count)
+                {
+                    var start = sortedDistinct[i];
+                    var end = start;
+                    while (i + 1 < sortedDistinct.Count && sortedDistinct[i + 1] == end + 1)
+                    {
+                        end = sortedDistinct[i + 1];
+                        i++;
+                    }
+
+                    if (start == end)
+                    {
+                        tokens.Add(start.ToString(CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        tokens.Add($"{start}-{end}");
+                    }
+                    i++;
+                }
+
+                // Add random duplicate tokens or whitespace to test deduplication and robustness
+                var rangeString = string.Join(", ", tokens);
+                return (totalPages, rangeString, expectedZeroBased);
+            });
+        })
+        .Sample(testCase =>
+        {
+            var success = PageRangeParser.TryParsePageRange(testCase.rangeString, testCase.totalPages, out var actualIndices);
+
+            Assert.True(success, $"Failed to parse generated range: '{testCase.rangeString}' for totalPages={testCase.totalPages}");
+            Assert.NotNull(actualIndices);
+            Assert.Equal(testCase.expectedZeroBased, actualIndices);
+        });
+    }
+
+    [Fact]
+    public void CsCheck_TryResolvePageIndices_Fuzzing_NeverThrowsUnhandledException()
+    {
+        var genMode = Gen.OneOf(
+            Gen.Const(PdfExportPageMode.AllPages),
+            Gen.Const(PdfExportPageMode.CurrentPage),
+            Gen.Const(PdfExportPageMode.CustomRange));
+
+        Gen.Select(genMode, Gen.Int[-5, 50], Gen.Int[-5, 50], Gen.String)
+            .Sample((mode, totalPages, activeIndex, customRange) =>
+            {
+                // Must return cleanly (true or false), never throw unhandled exception
+                _ = PageRangeParser.TryResolvePageIndices(mode, totalPages, activeIndex, customRange, out _);
+            });
+    }
+
+    [Fact]
     public void CsCheck_Fuzzing_NeverThrowsUnhandledException()
     {
         Gen.String.SelectMany(s => Gen.Int[-5, 50].Select(n => (input: s, totalPages: n)))

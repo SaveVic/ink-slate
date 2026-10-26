@@ -144,6 +144,46 @@ public sealed partial class ToolbarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLassoOptionsOpen;
 
+    partial void OnIsPenOptionsOpenChanged(bool value)
+    {
+        if (value)
+        {
+            IsEraserOptionsOpen = false;
+            IsLassoOptionsOpen = false;
+            IsTextOptionsOpen = false;
+        }
+    }
+
+    partial void OnIsEraserOptionsOpenChanged(bool value)
+    {
+        if (value)
+        {
+            IsPenOptionsOpen = false;
+            IsLassoOptionsOpen = false;
+            IsTextOptionsOpen = false;
+        }
+    }
+
+    partial void OnIsLassoOptionsOpenChanged(bool value)
+    {
+        if (value)
+        {
+            IsPenOptionsOpen = false;
+            IsEraserOptionsOpen = false;
+            IsTextOptionsOpen = false;
+        }
+    }
+
+    partial void OnIsTextOptionsOpenChanged(bool value)
+    {
+        if (value)
+        {
+            IsPenOptionsOpen = false;
+            IsEraserOptionsOpen = false;
+            IsLassoOptionsOpen = false;
+        }
+    }
+
     public ToolbarViewModel()
     {
         ColorSwatches = CreateFrozenSwatches();

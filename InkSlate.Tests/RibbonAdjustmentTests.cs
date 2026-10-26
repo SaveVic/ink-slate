@@ -1040,5 +1040,87 @@ public sealed class RibbonAdjustmentTests
             Assert.Null(viewer.Cursor);
         });
     }
+
+    [Fact]
+    public void MainViewModel_PopoverMutualExclusivity_OpeningAnyPopoverClosesOthers()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+
+            // 1. Open Pen options -> closes PageSetup and PdfExport
+            mainVm.IsPageSetupOpen = true;
+            mainVm.Toolbar.IsPenOptionsOpen = true;
+            Assert.True(mainVm.Toolbar.IsPenOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsEraserOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsLassoOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsTextOptionsOpen);
+            Assert.False(mainVm.IsPageSetupOpen);
+            Assert.False(mainVm.IsPdfExportOpen);
+
+            // 2. Open Eraser options
+            mainVm.Toolbar.IsEraserOptionsOpen = true;
+            Assert.False(mainVm.Toolbar.IsPenOptionsOpen);
+            Assert.True(mainVm.Toolbar.IsEraserOptionsOpen);
+            Assert.False(mainVm.IsPageSetupOpen);
+            Assert.False(mainVm.IsPdfExportOpen);
+
+            // 3. Open Lasso options
+            mainVm.Toolbar.IsLassoOptionsOpen = true;
+            Assert.False(mainVm.Toolbar.IsEraserOptionsOpen);
+            Assert.True(mainVm.Toolbar.IsLassoOptionsOpen);
+
+            // 4. Open Text options
+            mainVm.Toolbar.IsTextOptionsOpen = true;
+            Assert.False(mainVm.Toolbar.IsLassoOptionsOpen);
+            Assert.True(mainVm.Toolbar.IsTextOptionsOpen);
+
+            // 5. Open PageSetup via command
+            mainVm.TogglePageSetupCommand.Execute(null);
+            Assert.True(mainVm.IsPageSetupOpen);
+            Assert.False(mainVm.Toolbar.IsPenOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsEraserOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsLassoOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsTextOptionsOpen);
+            Assert.False(mainVm.IsPdfExportOpen);
+
+            // 6. Open PdfExport via command
+            mainVm.TogglePdfExportCommand.Execute(null);
+            Assert.True(mainVm.IsPdfExportOpen);
+            Assert.False(mainVm.IsPageSetupOpen);
+            Assert.False(mainVm.Toolbar.IsPenOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsEraserOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsLassoOptionsOpen);
+            Assert.False(mainVm.Toolbar.IsTextOptionsOpen);
+        });
+    }
+
+    [Fact]
+    public void PageHeader_MultiPageNumberingAndSequentialRenumberingOnDeletion()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            Assert.Single(mainVm.Pages);
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+
+            // Add pages 2 and 3
+            mainVm.AddPageCommand.Execute(null);
+            mainVm.AddPageCommand.Execute(null);
+            Assert.Equal(3, mainVm.Pages.Count);
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+            Assert.Equal(2, mainVm.Pages[1].PageNumber);
+            Assert.Equal(3, mainVm.Pages[2].PageNumber);
+
+            // Delete middle page (page 2)
+            var middlePage = mainVm.Pages[1];
+            mainVm.DeleteSpecificPageCommand.Execute(middlePage);
+
+            // Remaining pages are renumbered 1, 2
+            Assert.Equal(2, mainVm.Pages.Count);
+            Assert.Equal(1, mainVm.Pages[0].PageNumber);
+            Assert.Equal(2, mainVm.Pages[1].PageNumber);
+        });
+    }
 }
 

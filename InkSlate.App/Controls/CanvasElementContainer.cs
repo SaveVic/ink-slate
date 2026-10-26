@@ -15,6 +15,7 @@ public sealed class CanvasElementContainer : ContentControl
 {
     private CanvasElementAdorner? _adorner;
     private bool _isDragging;
+    private bool _isPropertyChangedSubscribed;
     private Point _dragStartMouse;
     private Rect _dragInitialBounds;
 
@@ -37,7 +38,7 @@ public sealed class CanvasElementContainer : ContentControl
         SnapsToDevicePixels = true;
 
         ApplyGeometry();
-        Element.PropertyChanged += OnElementPropertyChanged;
+        SubscribePropertyChanged();
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -46,6 +47,7 @@ public sealed class CanvasElementContainer : ContentControl
     public CanvasElementViewModel Element { get; }
     public UndoRedoManager? UndoRedo { get; set; }
     public Guid PageId { get; set; }
+    public bool IsPropertyChangedSubscribed => _isPropertyChangedSubscribed;
 
     public void ApplyGeometry()
     {
@@ -63,14 +65,33 @@ public sealed class CanvasElementContainer : ContentControl
         _adorner?.InvalidateVisual();
     }
 
+    private void SubscribePropertyChanged()
+    {
+        if (!_isPropertyChangedSubscribed)
+        {
+            Element.PropertyChanged += OnElementPropertyChanged;
+            _isPropertyChangedSubscribed = true;
+        }
+    }
+
+    private void UnsubscribePropertyChanged()
+    {
+        if (_isPropertyChangedSubscribed)
+        {
+            Element.PropertyChanged -= OnElementPropertyChanged;
+            _isPropertyChangedSubscribed = false;
+        }
+    }
+
     public void Detach()
     {
-        Element.PropertyChanged -= OnElementPropertyChanged;
+        UnsubscribePropertyChanged();
         DetachAdorner();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        SubscribePropertyChanged();
         if (Element.IsSelected)
         {
             AttachAdorner();
@@ -79,6 +100,7 @@ public sealed class CanvasElementContainer : ContentControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        UnsubscribePropertyChanged();
         DetachAdorner();
     }
 
@@ -132,6 +154,7 @@ public sealed class CanvasElementContainer : ContentControl
     {
         if (_adorner is not null)
         {
+            _adorner.Detach();
             var layer = AdornerLayer.GetAdornerLayer(this);
             layer?.Remove(_adorner);
             _adorner = null;

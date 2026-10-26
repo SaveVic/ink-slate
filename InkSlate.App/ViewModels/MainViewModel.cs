@@ -117,6 +117,36 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(WindowTitleDisplay))]
     private bool _isDirty;
 
+    public string? RecoveryDirectoryOverride { get; set; }
+    public static readonly TimeSpan DefaultRecoveryIdleInterval = TimeSpan.FromSeconds(60);
+    private readonly System.Windows.Threading.DispatcherTimer? _recoveryIdleTimer;
+
+    public TimeSpan RecoveryIdleInterval
+    {
+        get => _recoveryIdleTimer?.Interval ?? DefaultRecoveryIdleInterval;
+        set
+        {
+            if (_recoveryIdleTimer is not null)
+            {
+                _recoveryIdleTimer.Interval = value;
+            }
+        }
+    }
+
+    public bool IsRecoveryTimerActive => _recoveryIdleTimer?.IsEnabled ?? false;
+
+    partial void OnIsDirtyChanged(bool value)
+    {
+        if (value)
+        {
+            ResetRecoveryIdleTimer();
+        }
+        else
+        {
+            _recoveryIdleTimer?.Stop();
+        }
+    }
+
     public bool IsSaved => !IsDirty && !string.IsNullOrWhiteSpace(CurrentFilePath);
 
     public string SaveStatusDisplay => IsSaved ? "Saved" : (string.IsNullOrWhiteSpace(CurrentFilePath) && !IsDirty ? "Not saved" : "Unsaved");
@@ -132,6 +162,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (oldValue is not null && !string.Equals(oldValue, newValue, StringComparison.Ordinal))
         {
             IsDirty = true;
+            ResetRecoveryIdleTimer();
         }
     }
 
@@ -157,6 +188,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             DocumentTitle = newTitle;
             IsDirty = true;
+            ResetRecoveryIdleTimer();
         }
 
         IsEditingTitle = false;
@@ -265,8 +297,25 @@ public sealed partial class MainViewModel : ObservableObject
             if (UndoRedo.UndoCount > 0 || UndoRedo.RedoCount > 0)
             {
                 IsDirty = true;
+                ResetRecoveryIdleTimer();
             }
         };
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher ??
+            (System.Threading.Thread.CurrentThread.GetApartmentState() == System.Threading.ApartmentState.STA
+                ? System.Windows.Threading.Dispatcher.CurrentDispatcher
+                : null);
+
+        if (dispatcher is not null)
+        {
+            _recoveryIdleTimer = new System.Windows.Threading.DispatcherTimer(
+                System.Windows.Threading.DispatcherPriority.Background,
+                dispatcher)
+            {
+                Interval = DefaultRecoveryIdleInterval
+            };
+            _recoveryIdleTimer.Tick += OnRecoveryIdleTimerTick;
+        }
 
         if (document.Pages.Count == 0)
         {
@@ -471,6 +520,7 @@ public sealed partial class MainViewModel : ObservableObject
         Pages.Add(pageVm);
         ActivePage = pageVm;
         IsDirty = true;
+        ResetRecoveryIdleTimer();
         NotifyPageCountChanged();
         PageNavigationScrollRequested?.Invoke(pageVm);
     }
@@ -535,6 +585,7 @@ public sealed partial class MainViewModel : ObservableObject
         Pages.RemoveAt(index);
         Document.Pages.Remove(targetPage.Model);
         IsDirty = true;
+        ResetRecoveryIdleTimer();
 
         for (var i = 0; i < Pages.Count; i++)
         {
@@ -756,6 +807,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         IsPageSetupOpen = false;
+        IsDirty = true;
+        ResetRecoveryIdleTimer();
     }
 
     private bool TryParseCurrentInputsAsDip(out PageDimensions dimensions)
@@ -1093,6 +1146,7 @@ public sealed partial class MainViewModel : ObservableObject
             CurrentFilePath = filePath;
             DocumentTitle = Path.GetFileNameWithoutExtension(filePath);
             IsDirty = false;
+            DeleteCurrentRecoveryFile();
         }
         finally
         {
@@ -1124,6 +1178,8 @@ public sealed partial class MainViewModel : ObservableObject
     public void LoadDocument(NoteDocument loadedDoc, string? filePath = null)
     {
         ArgumentNullException.ThrowIfNull(loadedDoc);
+
+        DeleteCurrentRecoveryFile();
 
         Document = loadedDoc;
         DocumentTitle = !string.IsNullOrWhiteSpace(loadedDoc.Title)
@@ -1196,7 +1252,54 @@ public sealed partial class MainViewModel : ObservableObject
             if (sender is PageViewModel { IsDirty: true })
             {
                 IsDirty = true;
+                ResetRecoveryIdleTimer();
             }
         }
+    }
+
+    private async void OnRecoveryIdleTimerTick(object? sender, EventArgs e)
+    {
+        _recoveryIdleTimer?.Stop();
+        if (IsDirty && !IsSaving)
+        {
+            try
+            {
+                await WriteRecoverySnapshotAsync();
+            }
+            catch
+            {
+                // Auto-save failures should not crash the host process
+            }
+        }
+    }
+
+    public void ResetRecoveryIdleTimer()
+    {
+        if (_recoveryIdleTimer is null)
+        {
+            return;
+        }
+
+        _recoveryIdleTimer.Stop();
+        if (IsDirty)
+        {
+            _recoveryIdleTimer.Start();
+        }
+    }
+
+    public async Task<string> WriteRecoverySnapshotAsync(CancellationToken ct = default)
+    {
+        return await CrashRecoveryService.WriteRecoverySnapshotAsync(
+            Document,
+            RecoveryDirectoryOverride,
+            strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes,
+            isfBytesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.ExportIsfBytes(),
+            ct: ct);
+    }
+
+    public void DeleteCurrentRecoveryFile()
+    {
+        _recoveryIdleTimer?.Stop();
+        CrashRecoveryService.DeleteRecoveryFile(Document.Id, RecoveryDirectoryOverride);
     }
 }

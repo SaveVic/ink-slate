@@ -35,6 +35,19 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        try
+        {
+            var mainViewModel = _serviceProvider?.GetService<MainViewModel>();
+            if (mainViewModel is not null && !mainViewModel.IsDirty)
+            {
+                mainViewModel.DeleteCurrentRecoveryFile();
+            }
+        }
+        catch
+        {
+            // Do not fail exit
+        }
+
         _serviceProvider?.Dispose();
         base.OnExit(e);
     }

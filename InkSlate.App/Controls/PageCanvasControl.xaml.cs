@@ -105,6 +105,9 @@ public partial class PageCanvasControl : UserControl
     private bool _isSplittingStroke;
     private readonly HashSet<Stroke> _pendingOversizedStrokes = new(ReferenceEqualityComparer.Instance);
     private StrokeCollection? _subscribedStrokes;
+    private bool _areCanvasHandlersAttached;
+
+    public bool AreCanvasHandlersAttached => _areCanvasHandlersAttached;
 
     public PageCanvasControl()
     {
@@ -130,17 +133,75 @@ public partial class PageCanvasControl : UserControl
             StylusTip = StylusTip.Ellipse
         };
 
-        AttachStrokesHandler(InternalInkCanvas.Strokes);
-        InternalInkCanvas.StrokeCollected += OnStrokeCollected;
-        InternalInkCanvas.SelectionChanging += OnInkCanvasSelectionChanging;
-        InternalInkCanvas.SelectionChanged += OnInkCanvasSelectionChanged;
-        InternalInkCanvas.SelectionMoved += OnInkCanvasSelectionMoved;
-        InternalInkCanvas.SelectionResized += OnInkCanvasSelectionResized;
+        AttachCanvasHandlers();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+
         RefreshEraserShape();
         UpdateEditingMode();
         AllowDrop = true;
         RequestBringIntoView += (_, e) => e.Handled = true;
         InternalInkCanvas.RequestBringIntoView += (_, e) => e.Handled = true;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e) => AttachCanvasHandlers();
+    private void OnUnloaded(object sender, RoutedEventArgs e) => DetachCanvasHandlers();
+
+    public void AttachCanvasHandlers()
+    {
+        if (_areCanvasHandlersAttached)
+        {
+            return;
+        }
+
+        InternalInkCanvas.StrokeCollected += OnStrokeCollected;
+        InternalInkCanvas.SelectionChanging += OnInkCanvasSelectionChanging;
+        InternalInkCanvas.SelectionChanged += OnInkCanvasSelectionChanged;
+        InternalInkCanvas.SelectionMoved += OnInkCanvasSelectionMoved;
+        InternalInkCanvas.SelectionResized += OnInkCanvasSelectionResized;
+
+        var targetStrokes = PageStrokes ?? InternalInkCanvas.Strokes;
+        AttachStrokesHandler(targetStrokes);
+
+        if (PageElements is INotifyCollectionChanged notify)
+        {
+            if (_observedElements is not null)
+            {
+                _observedElements.CollectionChanged -= OnElementsCollectionChanged;
+            }
+            _observedElements = notify;
+            _observedElements.CollectionChanged += OnElementsCollectionChanged;
+        }
+
+        _areCanvasHandlersAttached = true;
+    }
+
+    public void DetachCanvasHandlers()
+    {
+        if (!_areCanvasHandlersAttached)
+        {
+            return;
+        }
+
+        InternalInkCanvas.StrokeCollected -= OnStrokeCollected;
+        InternalInkCanvas.SelectionChanging -= OnInkCanvasSelectionChanging;
+        InternalInkCanvas.SelectionChanged -= OnInkCanvasSelectionChanged;
+        InternalInkCanvas.SelectionMoved -= OnInkCanvasSelectionMoved;
+        InternalInkCanvas.SelectionResized -= OnInkCanvasSelectionResized;
+
+        DetachStrokesHandler();
+
+        if (_observedElements is not null)
+        {
+            _observedElements.CollectionChanged -= OnElementsCollectionChanged;
+            _observedElements = null;
+        }
+
+        _selectedElementInitialBounds.Clear();
+        _selectedStrokeInitialPoints.Clear();
+        _pendingOversizedStrokes.Clear();
+
+        _areCanvasHandlersAttached = false;
     }
 
     public Guid PageId
@@ -638,7 +699,7 @@ public partial class PageCanvasControl : UserControl
                 AddElementContainer(element);
             }
 
-            if (newElements is INotifyCollectionChanged notify)
+            if (_areCanvasHandlersAttached && newElements is INotifyCollectionChanged notify)
             {
                 _observedElements = notify;
                 _observedElements.CollectionChanged += OnElementsCollectionChanged;
@@ -754,7 +815,10 @@ public partial class PageCanvasControl : UserControl
                 InternalInkCanvas.Strokes = target;
             }
 
-            AttachStrokesHandler(target);
+            if (_areCanvasHandlersAttached)
+            {
+                AttachStrokesHandler(target);
+            }
         }
         finally
         {

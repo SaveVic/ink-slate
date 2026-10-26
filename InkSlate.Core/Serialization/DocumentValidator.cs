@@ -42,6 +42,11 @@ public static partial class DocumentValidator
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        if (document.Id == Guid.Empty)
+        {
+            document.Id = Guid.CreateVersion7();
+        }
+
         if (document.FormatVersion <= 0)
         {
             document.FormatVersion = NoteDocument.CurrentFormatVersion;

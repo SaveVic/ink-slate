@@ -8,6 +8,7 @@ public sealed class NoteDocument
     public const int CurrentFormatVersion = 1;
     public const string DefaultTitle = "Untitled";
 
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public string Title { get; set; } = DefaultTitle;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

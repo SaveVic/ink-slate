@@ -13,6 +13,25 @@ public sealed class CanvasElementAdorner : Adorner
     private const double ThumbSize = 10.0;
     private const double MinDimension = 20.0;
 
+    public static readonly SolidColorBrush AccentBorderBrush;
+    public static readonly Pen BorderPen;
+    public static readonly SolidColorBrush ThumbBackgroundBrush;
+
+    static CanvasElementAdorner()
+    {
+        AccentBorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x00, 0x78, 0xD4));
+        AccentBorderBrush.Freeze();
+
+        BorderPen = new Pen(AccentBorderBrush, 1.5)
+        {
+            DashStyle = DashStyles.Dash
+        };
+        BorderPen.Freeze();
+
+        ThumbBackgroundBrush = (SolidColorBrush)Brushes.White.Clone();
+        ThumbBackgroundBrush.Freeze();
+    }
+
     private readonly VisualCollection _visualChildren;
     private readonly Thumb _topLeftThumb;
     private readonly Thumb _topRightThumb;
@@ -23,7 +42,6 @@ public sealed class CanvasElementAdorner : Adorner
     private Rect? _initialCrop;
     private double _totalDeltaX;
     private double _totalDeltaY;
-    private readonly Pen _borderPen;
 
     public CanvasElementAdorner(
         UIElement adornedElement,
@@ -40,14 +58,6 @@ public sealed class CanvasElementAdorner : Adorner
         PageId = pageId;
 
         _visualChildren = new VisualCollection(this);
-
-        var accentBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x00, 0x78, 0xD4));
-        accentBrush.Freeze();
-        _borderPen = new Pen(accentBrush, 1.5)
-        {
-            DashStyle = DashStyles.Dash
-        };
-        _borderPen.Freeze();
 
         _topLeftThumb = CreateThumb(Cursors.SizeNWSE);
         _topRightThumb = CreateThumb(Cursors.SizeNESW);
@@ -92,7 +102,15 @@ public sealed class CanvasElementAdorner : Adorner
         base.OnRender(drawingContext);
 
         var rect = new Rect(0, 0, AdornedElement.RenderSize.Width, AdornedElement.RenderSize.Height);
-        drawingContext.DrawRectangle(null, _borderPen, rect);
+        drawingContext.DrawRectangle(null, BorderPen, rect);
+    }
+
+    public void Detach()
+    {
+        UnhookThumbEvents(_topLeftThumb, OnTopLeftDragDelta);
+        UnhookThumbEvents(_topRightThumb, OnTopRightDragDelta);
+        UnhookThumbEvents(_bottomRightThumb, OnBottomRightDragDelta);
+        UnhookThumbEvents(_bottomLeftThumb, OnBottomLeftDragDelta);
     }
 
     private static Thumb CreateThumb(Cursor cursor)
@@ -102,8 +120,8 @@ public sealed class CanvasElementAdorner : Adorner
             Cursor = cursor,
             Width = ThumbSize,
             Height = ThumbSize,
-            Background = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x00, 0x78, 0xD4)),
+            Background = ThumbBackgroundBrush,
+            BorderBrush = AccentBorderBrush,
             BorderThickness = new Thickness(1.5)
         };
 
@@ -123,6 +141,13 @@ public sealed class CanvasElementAdorner : Adorner
         thumb.DragStarted += OnThumbDragStarted;
         thumb.DragDelta += onDelta;
         thumb.DragCompleted += OnThumbDragCompleted;
+    }
+
+    private void UnhookThumbEvents(Thumb thumb, DragDeltaEventHandler onDelta)
+    {
+        thumb.DragStarted -= OnThumbDragStarted;
+        thumb.DragDelta -= onDelta;
+        thumb.DragCompleted -= OnThumbDragCompleted;
     }
 
     private void OnThumbDragStarted(object sender, DragStartedEventArgs e)

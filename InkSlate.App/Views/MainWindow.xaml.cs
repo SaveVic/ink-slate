@@ -55,6 +55,11 @@ public partial class MainWindow : FluentWindow
                 ViewModel.ToggleViewModeCommand.Execute(null);
                 return true;
             }
+            else if (key == Key.V)
+            {
+                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pointer);
+                return true;
+            }
             else if (key == Key.P)
             {
                 ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pen);

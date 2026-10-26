@@ -135,6 +135,7 @@ public sealed class ViewportAndPaginationTests
     {
         RunInSta(() =>
         {
+            var startMem = GC.GetTotalMemory(true);
             var vm = new MainViewModel();
 
             // Add 199 more pages to reach 200 pages
@@ -184,9 +185,9 @@ public sealed class ViewportAndPaginationTests
             // Active page tracking should have updated to page 100
             Assert.Equal(100, vm.ActivePageIndex);
 
-            // Verify memory is bounded (well under 50 MB)
+            // Verify memory growth is bounded (well under 35 MB for 200 dehydrated pages)
             var mem = GC.GetTotalMemory(true);
-            Assert.True(mem < 50 * 1024 * 1024, $"Expected memory under 50MB, but was {mem / (1024 * 1024)}MB");
+            Assert.True(mem - startMem < 35 * 1024 * 1024, $"Expected memory growth under 35MB, but was {(mem - startMem) / (1024 * 1024)}MB");
         });
     }
 

@@ -16,18 +16,21 @@ public sealed class ToolbarViewModelTests
     private static void RunInSta(Action action) => StaTestRunner.Run(action);
 
     [Fact]
-    public void DefaultStateMatchesPenMode()
+    public void DefaultStateMatchesPointerMode()
     {
         var vm = new ToolbarViewModel();
 
-        Assert.Equal(ToolMode.Pen, vm.ActiveTool);
-        Assert.True(vm.IsPenToolActive);
+        Assert.Equal(ToolMode.Pointer, vm.ActiveTool);
+        Assert.True(vm.IsPointerToolActive);
+        Assert.False(vm.IsPenToolActive);
         Assert.False(vm.IsHighlighterToolActive);
         Assert.False(vm.IsEraserToolActive);
         Assert.False(vm.IsLassoToolActive);
         Assert.False(vm.IsTextToolActive);
         Assert.False(vm.IsImageToolActive);
         Assert.False(vm.IsPenOptionsOpen);
+        Assert.Equal(ToolbarPlacement.TopDocked, vm.Placement);
+        Assert.True(vm.IsTopDocked);
 
         var attrs = vm.CurrentDrawingAttributes;
         Assert.True(attrs.FitToCurve);
@@ -81,6 +84,11 @@ public sealed class ToolbarViewModelTests
         var vm = new ToolbarViewModel();
         Assert.False(vm.IsPenOptionsOpen);
 
+        // Switch to Pen tool
+        vm.SelectToolCommand.Execute(ToolMode.Pen);
+        Assert.Equal(ToolMode.Pen, vm.ActiveTool);
+        Assert.False(vm.IsPenOptionsOpen);
+
         // Clicking active tool toggles popover open
         vm.SelectToolCommand.Execute(ToolMode.Pen);
         Assert.True(vm.IsPenOptionsOpen);
@@ -120,6 +128,11 @@ public sealed class ToolbarViewModelTests
             };
 
             Assert.Same(toolbar.CurrentDrawingAttributes, canvas.InkSurface.DefaultDrawingAttributes);
+            Assert.Equal(InkCanvasEditingMode.None, canvas.InkSurface.EditingMode);
+
+            // Switch to Pen
+            toolbar.SelectToolCommand.Execute(ToolMode.Pen);
+            canvas.ActiveToolMode = toolbar.ActiveTool;
             Assert.Equal(InkCanvasEditingMode.Ink, canvas.InkSurface.EditingMode);
 
             // Change thickness in toolbar -> canvas reflects it without reallocation
@@ -177,6 +190,9 @@ public sealed class ToolbarViewModelTests
 
             Assert.True(window.HandleNavigationKey(Key.P, ModifierKeys.None));
             Assert.Equal(ToolMode.Pen, window.ViewModel.Toolbar.ActiveTool);
+
+            Assert.True(window.HandleNavigationKey(Key.V, ModifierKeys.None));
+            Assert.Equal(ToolMode.Pointer, window.ViewModel.Toolbar.ActiveTool);
         });
     }
 

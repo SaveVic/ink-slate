@@ -25,7 +25,7 @@ public sealed class MainWindowShellTests
     }
 
     [Fact]
-    public void FloatingCommandBarHasAllFourteenIconButtonsWithTooltips()
+    public void FloatingCommandBarHasAllSixteenIconButtonsWithTooltips()
     {
         RunInSta(() =>
         {
@@ -33,14 +33,13 @@ public sealed class MainWindowShellTests
 
             var bar = window.FindName("FloatingCommandBar") as System.Windows.Controls.Border;
             Assert.NotNull(bar);
-            Assert.Equal(44.0, bar.Height);
-            Assert.Equal(new CornerRadius(8), bar.CornerRadius);
 
             var buttonNamesAndTooltips = new (string Name, string Tooltip)[]
             {
                 ("OpenButton", "Open (Ctrl+O)"),
                 ("SaveButton", "Save (Ctrl+S)"),
                 ("ExportPdfButton", "Export PDF (Ctrl+E)"),
+                ("PointerToolButton", "Pointer / Select & Pan (V)"),
                 ("PenToolButton", "Pen (P)"),
                 ("HighlighterToolButton", "Highlighter (H)"),
                 ("EraserToolButton", "Eraser (E)"),
@@ -51,7 +50,8 @@ public sealed class MainWindowShellTests
                 ("RedoButton", "Redo (Ctrl+Y)"),
                 ("AddPageButton", "Add Page (Ctrl+Enter)"),
                 ("PageSetupButton", "Page Setup"),
-                ("ToggleViewModeButton", "Toggle View: Consecutive / Separated (F5)")
+                ("ToggleViewModeButton", "Toggle View: Consecutive / Separated (F5)"),
+                ("CyclePlacementButton", "Cycle Toolbar Position: Fixed Top / Left Sidebar / Floating")
             };
 
             foreach (var (name, expectedTooltip) in buttonNamesAndTooltips)

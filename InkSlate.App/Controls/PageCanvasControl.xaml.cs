@@ -61,7 +61,7 @@ public partial class PageCanvasControl : UserControl
             nameof(ActiveToolMode),
             typeof(ToolMode),
             typeof(PageCanvasControl),
-            new PropertyMetadata(ToolMode.Pen, OnActiveToolModePropertyChanged));
+            new PropertyMetadata(ToolMode.Pointer, OnActiveToolModePropertyChanged));
 
     public static readonly DependencyProperty ActiveEraserModeProperty =
         DependencyProperty.Register(
@@ -137,6 +137,7 @@ public partial class PageCanvasControl : UserControl
         InternalInkCanvas.SelectionMoved += OnInkCanvasSelectionMoved;
         InternalInkCanvas.SelectionResized += OnInkCanvasSelectionResized;
         RefreshEraserShape();
+        UpdateEditingMode();
         AllowDrop = true;
     }
 
@@ -560,7 +561,7 @@ public partial class PageCanvasControl : UserControl
 
         var container = new CanvasElementContainer(element, UndoRedoManager, PageId)
         {
-            IsHitTestVisible = ActiveToolMode is ToolMode.Text or ToolMode.Image or ToolMode.Lasso
+            IsHitTestVisible = ActiveToolMode is ToolMode.Pointer or ToolMode.Text or ToolMode.Image or ToolMode.Lasso
         };
         _containers[element] = container;
         InternalInkCanvas.Children.Add(container);
@@ -627,7 +628,7 @@ public partial class PageCanvasControl : UserControl
 
     private void UpdateElementInteractivity()
     {
-        var interactive = ActiveToolMode is ToolMode.Text or ToolMode.Image or ToolMode.Lasso;
+        var interactive = ActiveToolMode is ToolMode.Pointer or ToolMode.Text or ToolMode.Image or ToolMode.Lasso;
         foreach (var container in _containers.Values)
         {
             container.IsHitTestVisible = interactive;

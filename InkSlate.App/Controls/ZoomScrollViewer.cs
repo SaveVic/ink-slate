@@ -37,7 +37,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
             nameof(ActiveToolMode),
             typeof(ToolMode),
             typeof(ZoomScrollViewer),
-            new PropertyMetadata(ToolMode.Pen, OnActiveToolModePropertyChanged));
+            new PropertyMetadata(ToolMode.Pointer, OnActiveToolModePropertyChanged));
 
     public static readonly DependencyProperty PreviousPageCommandProperty =
         DependencyProperty.Register(
@@ -238,12 +238,21 @@ public sealed class ZoomScrollViewer : ScrollViewer
         ArgumentNullException.ThrowIfNull(e);
 
         var isMiddlePan = e.ChangedButton == MouseButton.Middle && e.MiddleButton == MouseButtonState.Pressed;
+        var isPointerPan = ActiveToolMode == ToolMode.Pointer &&
+                           e.ChangedButton == MouseButton.Left &&
+                           e.LeftButton == MouseButtonState.Pressed &&
+                           !IsInsideInteractiveElement(e.OriginalSource as DependencyObject);
         var isLeftPan = e.ChangedButton == MouseButton.Left &&
                         e.LeftButton == MouseButtonState.Pressed &&
-                        (_isSpaceKeyDown || ActiveToolMode == ToolMode.Pan);
+                        (_isSpaceKeyDown || ActiveToolMode == ToolMode.Pan || isPointerPan);
 
         if (isMiddlePan || isLeftPan)
         {
+            if (ActiveToolMode == ToolMode.Pointer)
+            {
+                DeselectActiveElements();
+            }
+
             BeginPan(e.GetPosition(this));
             CaptureMouse();
             e.Handled = true;
@@ -251,6 +260,38 @@ public sealed class ZoomScrollViewer : ScrollViewer
         }
 
         base.OnPreviewMouseDown(e);
+    }
+
+    private static bool IsInsideInteractiveElement(DependencyObject? obj)
+    {
+        while (obj != null)
+        {
+            if (obj is CanvasElementContainer or CanvasElementAdorner)
+            {
+                return true;
+            }
+
+            if (obj is Button or TextBox or System.Windows.Controls.Primitives.ScrollBar or System.Windows.Controls.Primitives.Thumb or Slider)
+            {
+                return true;
+            }
+
+            obj = VisualTreeHelper.GetParent(obj);
+        }
+
+        return false;
+    }
+
+    private void DeselectActiveElements()
+    {
+        if (DataContext is ViewModels.MainViewModel mainVm && mainVm.ActivePage?.Elements is not null)
+        {
+            foreach (var el in mainVm.ActivePage.Elements)
+            {
+                el.IsSelected = false;
+                el.IsEditing = false;
+            }
+        }
     }
 
     protected override void OnPreviewMouseMove(MouseEventArgs e)

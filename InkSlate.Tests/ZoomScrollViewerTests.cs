@@ -21,7 +21,7 @@ public sealed class ZoomScrollViewerTests
 
             Assert.Equal(1.0, viewer.ZoomLevel);
             Assert.Equal(ViewMode.Consecutive, viewer.CurrentViewMode);
-            Assert.Equal(ToolMode.Pen, viewer.ActiveToolMode);
+            Assert.Equal(ToolMode.Pointer, viewer.ActiveToolMode);
             Assert.True(viewer.IsManipulationEnabled);
             Assert.False(System.Windows.Input.Stylus.GetIsPressAndHoldEnabled(viewer));
             Assert.False(viewer.IsPanning);

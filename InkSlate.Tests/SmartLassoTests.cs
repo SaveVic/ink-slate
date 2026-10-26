@@ -23,7 +23,7 @@ public sealed class SmartLassoTests
         RunInSta(() =>
         {
             var control = new PageCanvasControl();
-            Assert.Equal(InkCanvasEditingMode.Ink, control.InkSurface.EditingMode);
+            Assert.Equal(InkCanvasEditingMode.None, control.InkSurface.EditingMode);
 
             control.ActiveToolMode = ToolMode.Lasso;
             Assert.Equal(InkCanvasEditingMode.Select, control.InkSurface.EditingMode);

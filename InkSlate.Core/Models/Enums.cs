@@ -4,13 +4,22 @@ namespace InkSlate.Core.Models;
 
 public enum ToolMode
 {
-    Pen = 0,
-    Highlighter = 1,
-    Eraser = 2,
-    Lasso = 3,
-    Pan = 4,
-    Text = 5,
-    Image = 6
+    [SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "Domain term representing the canvas selection and pan pointer tool.")]
+    Pointer = 0,
+    Pen = 1,
+    Highlighter = 2,
+    Eraser = 3,
+    Lasso = 4,
+    Pan = 5,
+    Text = 6,
+    Image = 7
+}
+
+public enum ToolbarPlacement
+{
+    TopDocked = 0,
+    LeftDocked = 1,
+    TopFloating = 2
 }
 
 public enum EraserMode

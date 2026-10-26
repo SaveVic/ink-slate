@@ -37,13 +37,20 @@ public sealed partial class ToolbarViewModel : ObservableObject
     ];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPointerToolActive))]
     [NotifyPropertyChangedFor(nameof(IsPenToolActive))]
     [NotifyPropertyChangedFor(nameof(IsHighlighterToolActive))]
     [NotifyPropertyChangedFor(nameof(IsEraserToolActive))]
     [NotifyPropertyChangedFor(nameof(IsLassoToolActive))]
     [NotifyPropertyChangedFor(nameof(IsTextToolActive))]
     [NotifyPropertyChangedFor(nameof(IsImageToolActive))]
-    private ToolMode _activeTool = ToolMode.Pen;
+    private ToolMode _activeTool = ToolMode.Pointer;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTopDocked))]
+    [NotifyPropertyChangedFor(nameof(IsLeftDocked))]
+    [NotifyPropertyChangedFor(nameof(IsTopFloating))]
+    private ToolbarPlacement _placement = ToolbarPlacement.TopDocked;
 
     [ObservableProperty]
     private double _selectedPenThickness = DefaultPenThickness;
@@ -104,12 +111,17 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public IReadOnlyList<ThicknessOption> ThicknessOptions { get; }
     public IReadOnlyList<EraserSizeOption> EraserSizeOptions { get; }
 
+    public bool IsPointerToolActive => ActiveTool == ToolMode.Pointer;
     public bool IsPenToolActive => ActiveTool == ToolMode.Pen;
     public bool IsHighlighterToolActive => ActiveTool == ToolMode.Highlighter;
     public bool IsEraserToolActive => ActiveTool == ToolMode.Eraser;
     public bool IsLassoToolActive => ActiveTool == ToolMode.Lasso;
     public bool IsTextToolActive => ActiveTool == ToolMode.Text;
     public bool IsImageToolActive => ActiveTool == ToolMode.Image;
+
+    public bool IsTopDocked => Placement == ToolbarPlacement.TopDocked;
+    public bool IsLeftDocked => Placement == ToolbarPlacement.LeftDocked;
+    public bool IsTopFloating => Placement == ToolbarPlacement.TopFloating;
 
     public bool IsStrokeEraserMode => SelectedEraserMode == EraserMode.Stroke;
     public bool IsPointEraserMode => SelectedEraserMode == EraserMode.Point;
@@ -118,6 +130,24 @@ public sealed partial class ToolbarViewModel : ObservableObject
     public bool IsLassoStrokesOnly => SelectedLassoFilterMode == LassoFilterMode.StrokesOnly;
     public bool IsLassoElementsOnly => SelectedLassoFilterMode == LassoFilterMode.ElementsOnly;
     public bool IsLassoAllObjects => SelectedLassoFilterMode == LassoFilterMode.AllObjects;
+
+    [RelayCommand]
+    private void CyclePlacement()
+    {
+        Placement = Placement switch
+        {
+            ToolbarPlacement.TopDocked => ToolbarPlacement.LeftDocked,
+            ToolbarPlacement.LeftDocked => ToolbarPlacement.TopFloating,
+            ToolbarPlacement.TopFloating => ToolbarPlacement.TopDocked,
+            _ => ToolbarPlacement.TopDocked
+        };
+    }
+
+    [RelayCommand]
+    private void SetPlacement(ToolbarPlacement placement)
+    {
+        Placement = placement;
+    }
 
     [RelayCommand]
     private void SelectTool(ToolMode mode)

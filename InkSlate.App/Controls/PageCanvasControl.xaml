@@ -1,11 +1,63 @@
 <UserControl x:Class="InkSlate.App.Controls.PageCanvasControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:cel="clr-namespace:InkSlate.Core.Models.CanvasElements;assembly=InkSlate.Core"
+             xmlns:converters="clr-namespace:InkSlate.App.Converters"
              ClipToBounds="True"
              Stylus.IsPressAndHoldEnabled="False"
              Stylus.IsFlicksEnabled="False"
              Stylus.IsTapFeedbackEnabled="False"
              Stylus.IsTouchFeedbackEnabled="False">
+    <UserControl.Resources>
+        <converters:HexToFrozenBrushConverter x:Key="HexToFrozenBrushConverter" />
+
+        <DataTemplate DataType="{x:Type cel:TextCanvasElement}">
+            <TextBlock x:Name="ElementTextBlock"
+                       Text="{Binding Text, Mode=OneTime}"
+                       FontFamily="{Binding FontFamily, Mode=OneTime}"
+                       FontSize="{Binding FontSize, Mode=OneTime}"
+                       Foreground="{Binding ForegroundHex, Converter={StaticResource HexToFrozenBrushConverter}, Mode=OneTime}"
+                       TextWrapping="Wrap"
+                       IsHitTestVisible="False" />
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsBold, Mode=OneTime}" Value="True">
+                    <Setter TargetName="ElementTextBlock" Property="FontWeight" Value="Bold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsItalic, Mode=OneTime}" Value="True">
+                    <Setter TargetName="ElementTextBlock" Property="FontStyle" Value="Italic" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type cel:ImageCanvasElement}">
+            <Grid Background="Transparent">
+                <Image Source="{Binding DataContext.ImageSource, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                       Stretch="Fill" />
+                <Border BorderBrush="#33000000"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Background="#08000000">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.ImageSource, RelativeSource={RelativeSource AncestorType=ContentControl}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <ui:SymbolIcon Symbol="Image24"
+                                   FontSize="24"
+                                   Foreground="#66000000"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid x:Name="RootGrid"
           ClipToBounds="True"
           Background="Transparent">

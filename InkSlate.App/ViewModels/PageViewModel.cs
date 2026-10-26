@@ -59,6 +59,11 @@ public sealed partial class PageViewModel : ObservableObject
         {
             Elements.Add(new CanvasElementViewModel(element));
         }
+
+        if (UndoRedo is not null)
+        {
+            UndoRedo.StateChanged += OnUndoRedoStateChanged;
+        }
     }
 
     public NotePage Model { get; }
@@ -72,6 +77,21 @@ public sealed partial class PageViewModel : ObservableObject
     public void AddElement(CanvasElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
+
+        if (element.ZIndex == 0 && Elements.Count > 0)
+        {
+            if (element is ImageCanvasElement)
+            {
+                var minZ = Elements.Min(e => e.ZIndex);
+                element.ZIndex = minZ - 1;
+            }
+            else if (element is TextCanvasElement)
+            {
+                var maxZ = Elements.Max(e => e.ZIndex);
+                element.ZIndex = maxZ + 1;
+            }
+        }
+
         var vm = new CanvasElementViewModel(element);
         Elements.Add(vm);
         Model.Elements.Add(element);
@@ -80,6 +100,56 @@ public sealed partial class PageViewModel : ObservableObject
         if (UndoRedo is not null && !UndoRedo.IsReplaying)
         {
             UndoRedo.Record(new ElementAddedOperation(Id, _synchronizedElements, element));
+        }
+    }
+
+    [RelayCommand]
+    public void BringElementToFront(CanvasElementViewModel? elementVm)
+    {
+        if (elementVm is null || !Elements.Contains(elementVm) || Elements.Count <= 1)
+        {
+            return;
+        }
+
+        var maxZ = Elements.Max(e => e.ZIndex);
+        if (elementVm.ZIndex > maxZ || (elementVm.ZIndex == maxZ && Elements.Count(e => e.ZIndex == maxZ) == 1))
+        {
+            return;
+        }
+
+        var oldZ = elementVm.ZIndex;
+        var newZ = maxZ + 1;
+        elementVm.ZIndex = newZ;
+        IsDirty = true;
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            UndoRedo.Record(new ElementZIndexChangedOperation(Id, [new ElementZIndexChange(elementVm.Model, oldZ, newZ)]));
+        }
+    }
+
+    [RelayCommand]
+    public void SendElementToBack(CanvasElementViewModel? elementVm)
+    {
+        if (elementVm is null || !Elements.Contains(elementVm) || Elements.Count <= 1)
+        {
+            return;
+        }
+
+        var minZ = Elements.Min(e => e.ZIndex);
+        if (elementVm.ZIndex < minZ || (elementVm.ZIndex == minZ && Elements.Count(e => e.ZIndex == minZ) == 1))
+        {
+            return;
+        }
+
+        var oldZ = elementVm.ZIndex;
+        var newZ = minZ - 1;
+        elementVm.ZIndex = newZ;
+        IsDirty = true;
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            UndoRedo.Record(new ElementZIndexChangedOperation(Id, [new ElementZIndexChange(elementVm.Model, oldZ, newZ)]));
         }
     }
 
@@ -201,6 +271,14 @@ public sealed partial class PageViewModel : ObservableObject
     private void OnStrokesChanged(object? sender, StrokeCollectionChangedEventArgs e)
     {
         IsDirty = true;
+    }
+
+    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
+    {
+        foreach (var element in Elements)
+        {
+            element.RefreshFromModel();
+        }
     }
 
     private void OnSynchronizedElementInserted(int index, CanvasElement item)

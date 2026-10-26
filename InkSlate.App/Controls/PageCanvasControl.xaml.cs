@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
@@ -79,7 +80,7 @@ public partial class PageCanvasControl : UserControl
             nameof(PageElements),
             typeof(IList<CanvasElementViewModel>),
             typeof(PageCanvasControl),
-            new PropertyMetadata(null));
+            new PropertyMetadata(null, OnPageElementsPropertyChanged));
 
     public static readonly DependencyProperty RemoveElementCommandProperty =
         DependencyProperty.Register(
@@ -87,6 +88,9 @@ public partial class PageCanvasControl : UserControl
             typeof(ICommand),
             typeof(PageCanvasControl),
             new PropertyMetadata(null));
+
+    private readonly Dictionary<CanvasElementViewModel, CanvasElementContainer> _containers = new(ReferenceEqualityComparer.Instance);
+    private INotifyCollectionChanged? _observedElements;
 
     private bool _isSyncingStrokes;
     private bool _isSplittingStroke;
@@ -185,6 +189,11 @@ public partial class PageCanvasControl : UserControl
     public InkCanvas InkSurface => InternalInkCanvas;
 
     public Ellipse EraserCursor => EraserCursorIndicator;
+
+    public IReadOnlyCollection<CanvasElementContainer> ElementContainers => _containers.Values;
+
+    public CanvasElementContainer? GetContainer(CanvasElementViewModel vm) =>
+        _containers.TryGetValue(vm, out var container) ? container : null;
 
     public void RefreshEraserShape()
     {
@@ -376,6 +385,14 @@ public partial class PageCanvasControl : UserControl
         }
     }
 
+    private static void OnPageElementsPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control)
+        {
+            control.SyncElementsFromProperty(e.NewValue as IList<CanvasElementViewModel>);
+        }
+    }
+
     private static void OnActiveEraserModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PageCanvasControl control)
@@ -426,6 +443,126 @@ public partial class PageCanvasControl : UserControl
         {
             InternalInkCanvas.EditingMode = InkCanvasEditingMode.None;
             HideEraserCursor();
+        }
+
+        UpdateElementInteractivity();
+    }
+
+    private void SyncElementsFromProperty(IList<CanvasElementViewModel>? newElements)
+    {
+        if (_observedElements is not null)
+        {
+            _observedElements.CollectionChanged -= OnElementsCollectionChanged;
+            _observedElements = null;
+        }
+
+        ClearElementContainers();
+
+        if (newElements is not null)
+        {
+            foreach (var element in newElements)
+            {
+                AddElementContainer(element);
+            }
+
+            if (newElements is INotifyCollectionChanged notify)
+            {
+                _observedElements = notify;
+                _observedElements.CollectionChanged += OnElementsCollectionChanged;
+            }
+        }
+    }
+
+    private void ClearElementContainers()
+    {
+        foreach (var container in _containers.Values)
+        {
+            container.Detach();
+            InternalInkCanvas.Children.Remove(container);
+        }
+        _containers.Clear();
+    }
+
+    private void AddElementContainer(CanvasElementViewModel element)
+    {
+        if (_containers.ContainsKey(element))
+        {
+            return;
+        }
+
+        var container = new CanvasElementContainer(element)
+        {
+            IsHitTestVisible = ActiveToolMode is ToolMode.Text or ToolMode.Image
+        };
+        _containers[element] = container;
+        InternalInkCanvas.Children.Add(container);
+    }
+
+    private void RemoveElementContainer(CanvasElementViewModel element)
+    {
+        if (_containers.Remove(element, out var container))
+        {
+            container.Detach();
+            InternalInkCanvas.Children.Remove(container);
+        }
+    }
+
+    private void OnElementsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                if (e.NewItems is not null)
+                {
+                    foreach (CanvasElementViewModel item in e.NewItems)
+                    {
+                        AddElementContainer(item);
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                if (e.OldItems is not null)
+                {
+                    foreach (CanvasElementViewModel item in e.OldItems)
+                    {
+                        RemoveElementContainer(item);
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Replace:
+                if (e.OldItems is not null)
+                {
+                    foreach (CanvasElementViewModel item in e.OldItems)
+                    {
+                        RemoveElementContainer(item);
+                    }
+                }
+                if (e.NewItems is not null)
+                {
+                    foreach (CanvasElementViewModel item in e.NewItems)
+                    {
+                        AddElementContainer(item);
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                SyncElementsFromProperty(PageElements);
+                break;
+
+            case NotifyCollectionChangedAction.Move:
+                break;
+        }
+    }
+
+    private void UpdateElementInteractivity()
+    {
+        var interactive = ActiveToolMode is ToolMode.Text or ToolMode.Image;
+        foreach (var container in _containers.Values)
+        {
+            container.IsHitTestVisible = interactive;
         }
     }
 

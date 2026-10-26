@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using InkSlate.Core.Models.CanvasElements;
 
@@ -21,6 +22,9 @@ public sealed partial class CanvasElementViewModel : ObservableObject
 
     public Guid Id => Model.Id;
 
+    public bool IsImage => Model is ImageCanvasElement;
+    public bool IsText => Model is TextCanvasElement;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Bounds))]
     private double _x;
@@ -40,6 +44,9 @@ public sealed partial class CanvasElementViewModel : ObservableObject
     [ObservableProperty]
     private int _zIndex;
 
+    [ObservableProperty]
+    private ImageSource? _imageSource;
+
     public Rect Bounds => new(X, Y, Math.Max(0.0, Width), Math.Max(0.0, Height));
 
     public bool HitTest(Point point, double tolerance = 0.0)
@@ -51,10 +58,18 @@ public sealed partial class CanvasElementViewModel : ObservableObject
                point.Y <= Y + Math.Max(0.0, Height) + r;
     }
 
+    public void RefreshFromModel()
+    {
+        X = Model.X;
+        Y = Model.Y;
+        Width = Model.Width;
+        Height = Model.Height;
+        ZIndex = Model.ZIndex;
+    }
+
     partial void OnXChanged(double value) => Model.X = value;
     partial void OnYChanged(double value) => Model.Y = value;
     partial void OnWidthChanged(double value) => Model.Width = value;
     partial void OnHeightChanged(double value) => Model.Height = value;
     partial void OnZIndexChanged(int value) => Model.ZIndex = value;
 }
-

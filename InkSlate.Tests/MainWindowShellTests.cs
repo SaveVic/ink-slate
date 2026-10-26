@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Windows;
 using InkSlate.App.Views;
 using Wpf.Ui.Controls;
@@ -8,47 +7,7 @@ namespace InkSlate.Tests;
 
 public sealed class MainWindowShellTests
 {
-    private static readonly BlockingCollection<Action> WorkQueue = [];
-    private static readonly Thread StaThread;
-
-    static MainWindowShellTests()
-    {
-        StaThread = new Thread(() =>
-        {
-            if (Application.Current is null)
-            {
-                var app = new Application();
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark });
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
-            }
-
-            foreach (var action in WorkQueue.GetConsumingEnumerable())
-            {
-                action();
-            }
-        });
-        StaThread.SetApartmentState(ApartmentState.STA);
-        StaThread.IsBackground = true;
-        StaThread.Start();
-    }
-
-    private static void RunInSta(Action action)
-    {
-        var tcs = new TaskCompletionSource();
-        WorkQueue.Add(() =>
-        {
-            try
-            {
-                action();
-                tcs.SetResult();
-            }
-            catch (Exception ex)
-            {
-                tcs.SetException(ex);
-            }
-        });
-        tcs.Task.GetAwaiter().GetResult();
-    }
+    private static void RunInSta(Action action) => StaTestRunner.Run(action);
 
     [Fact]
     public void MainWindowHasFluentMicaConfiguration()
@@ -134,6 +93,23 @@ public sealed class MainWindowShellTests
             Assert.NotNull(zoom);
             Assert.Equal("100%", zoom.Content?.ToString());
             Assert.Equal("Reset Zoom (Ctrl+0)", zoom.ToolTip?.ToString());
+        });
+    }
+
+    [Fact]
+    public void ViewportRegionContainsZoomScrollViewer()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            var region = window.FindName("ViewportRegion") as System.Windows.Controls.Border;
+            Assert.NotNull(region);
+
+            var scrollViewer = window.FindName("ViewportScrollViewer") as InkSlate.App.Controls.ZoomScrollViewer;
+            Assert.NotNull(scrollViewer);
+            Assert.Equal(1.0, scrollViewer.ZoomLevel);
+            Assert.True(scrollViewer.IsManipulationEnabled);
         });
     }
 }

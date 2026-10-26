@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core"
+                 xmlns:controls="clr-namespace:InkSlate.App.Controls"
                  Title="InkSlate"
                  Width="1280"
                  Height="800"
@@ -70,15 +71,22 @@
             <Border x:Name="ViewportRegion"
                     Background="Transparent"
                     ClipToBounds="True">
-                <Border Width="{Binding ActivePage.Width, FallbackValue=793.7}"
-                        Height="{Binding ActivePage.Height, FallbackValue=1122.5}"
-                        Margin="0,60,0,32"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Top"
-                        Background="#FFFFFFFF"
-                        BorderBrush="#1A000000"
-                        BorderThickness="1"
-                        Effect="{StaticResource FloatingSurfaceShadow}" />
+                <controls:ZoomScrollViewer x:Name="ViewportScrollViewer"
+                                           ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
+                                           CurrentViewMode="{Binding CurrentViewMode}"
+                                           PreviousPageCommand="{Binding PreviousPageCommand}"
+                                           NextPageCommand="{Binding NextPageCommand}"
+                                           Background="Transparent">
+                    <Border Width="{Binding ActivePage.Width, FallbackValue=793.7}"
+                            Height="{Binding ActivePage.Height, FallbackValue=1122.5}"
+                            Margin="0,60,0,32"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Background="#FFFFFFFF"
+                            BorderBrush="#1A000000"
+                            BorderThickness="1"
+                            Effect="{StaticResource FloatingSurfaceShadow}" />
+                </controls:ZoomScrollViewer>
             </Border>
 
             <!-- Top Floating Command Bar -->

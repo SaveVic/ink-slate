@@ -5,6 +5,7 @@ using System.Windows.Ink;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using InkSlate.Core.Ink;
 using InkSlate.Core.Models;
 using InkSlate.Core.Models.CanvasElements;
 using InkSlate.Core.UndoRedo;
@@ -150,7 +151,8 @@ public sealed partial class PageViewModel : ObservableObject
             {
                 using var ms = new MemoryStream(_compressedIsfBytes, writable: false);
                 var loaded = new StrokeCollection(ms);
-                hydratedStrokes = EnforceStylusPointBudget(loaded);
+                var split = StrokeSplitter.SplitAll(loaded);
+                hydratedStrokes = EnforceStylusPointBudget(split);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {

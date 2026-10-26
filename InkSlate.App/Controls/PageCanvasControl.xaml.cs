@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using InkSlate.App.ViewModels;
+using InkSlate.Core.Ink;
 using InkSlate.Core.Models;
 using InkSlate.Core.UndoRedo;
 
@@ -88,6 +89,8 @@ public partial class PageCanvasControl : UserControl
             new PropertyMetadata(null));
 
     private bool _isSyncingStrokes;
+    private bool _isSplittingStroke;
+    private readonly HashSet<Stroke> _pendingOversizedStrokes = new(ReferenceEqualityComparer.Instance);
     private StrokeCollection? _subscribedStrokes;
 
     public PageCanvasControl()
@@ -115,6 +118,7 @@ public partial class PageCanvasControl : UserControl
         };
 
         AttachStrokesHandler(InternalInkCanvas.Strokes);
+        InternalInkCanvas.StrokeCollected += OnStrokeCollected;
         RefreshEraserShape();
     }
 
@@ -428,6 +432,7 @@ public partial class PageCanvasControl : UserControl
     private void SyncStrokesFromProperty(StrokeCollection? newStrokes)
     {
         DetachStrokesHandler();
+        _pendingOversizedStrokes.Clear();
 
         _isSyncingStrokes = true;
         try
@@ -464,8 +469,19 @@ public partial class PageCanvasControl : UserControl
 
     private void OnInternalStrokesChanged(object? sender, StrokeCollectionChangedEventArgs e)
     {
-        if (_isSyncingStrokes || (e.Added.Count == 0 && e.Removed.Count == 0))
+        if (_isSyncingStrokes || _isSplittingStroke || (e.Added.Count == 0 && e.Removed.Count == 0))
         {
+            return;
+        }
+
+        // Defer oversized freshly-inked strokes; StrokeCollected will split and record them atomically.
+        if (InternalInkCanvas.EditingMode == InkCanvasEditingMode.Ink &&
+            e.Removed.Count == 0 &&
+            e.Added.Count == 1 &&
+            StrokeSplitter.IsOversized(e.Added[0]))
+        {
+            _pendingOversizedStrokes.Add(e.Added[0]);
+            IsPageDirty = true;
             return;
         }
 
@@ -477,6 +493,52 @@ public partial class PageCanvasControl : UserControl
             var target = _subscribedStrokes ?? InternalInkCanvas.Strokes;
             var op = new StrokesChangedOperation(PageId, target, e.Added, e.Removed);
             manager.Record(op);
+        }
+    }
+
+    public int SplitCollectedStroke(Stroke stroke)
+    {
+        ArgumentNullException.ThrowIfNull(stroke);
+
+        var target = _subscribedStrokes ?? InternalInkCanvas.Strokes;
+        var wasPending = _pendingOversizedStrokes.Remove(stroke);
+
+        if (!StrokeSplitter.IsOversized(stroke) || !target.Contains(stroke))
+        {
+            return 0;
+        }
+
+        var chunks = StrokeSplitter.Split(stroke);
+        var added = new StrokeCollection(chunks);
+
+        _isSplittingStroke = true;
+        try
+        {
+            target.Replace(stroke, added);
+        }
+        finally
+        {
+            _isSplittingStroke = false;
+        }
+
+        IsPageDirty = true;
+
+        var manager = UndoRedoManager;
+        if (manager is not null && !manager.IsReplaying)
+        {
+            var removed = wasPending ? [] : new StrokeCollection([stroke]);
+            var op = new StrokesChangedOperation(PageId, target, added, removed);
+            manager.Record(op);
+        }
+
+        return chunks.Count;
+    }
+
+    private void OnStrokeCollected(object? sender, InkCanvasStrokeCollectedEventArgs e)
+    {
+        if (e.Stroke is not null)
+        {
+            SplitCollectedStroke(e.Stroke);
         }
     }
 }

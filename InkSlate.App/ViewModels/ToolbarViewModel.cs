@@ -1,22 +1,26 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Ink;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkSlate.Core.Models;
+using InkSlate.Core.Services;
 
 namespace InkSlate.App.ViewModels;
 
 public sealed partial class ColorSwatchOption : ObservableObject
 {
-    public ColorSwatchOption(string hex, SolidColorBrush frozenBrush)
+    public ColorSwatchOption(string hex, SolidColorBrush frozenBrush, bool isCustom = false)
     {
         Hex = hex;
         FrozenBrush = frozenBrush;
+        IsCustom = isCustom;
     }
 
     public string Hex { get; }
     public SolidColorBrush FrozenBrush { get; }
+    public bool IsCustom { get; }
 
     [ObservableProperty]
     private bool _isSelected;
@@ -136,6 +140,36 @@ public sealed partial class ToolbarViewModel : ObservableObject
     private bool _isTextOptionsOpen;
 
     [ObservableProperty]
+    private bool _isCustomColorPickerOpen;
+
+    [ObservableProperty]
+    private byte _customColorR = 0x25;
+
+    [ObservableProperty]
+    private byte _customColorG = 0x63;
+
+    [ObservableProperty]
+    private byte _customColorB = 0xEB;
+
+    [ObservableProperty]
+    private double _customColorHue = 221.0;
+
+    [ObservableProperty]
+    private double _customColorSaturation = 0.84;
+
+    [ObservableProperty]
+    private double _customColorValue = 0.92;
+
+    [ObservableProperty]
+    private string _customColorHexInput = "#2563EB";
+
+    [ObservableProperty]
+    private SolidColorBrush _customColorPreviewBrush = null!;
+
+    [ObservableProperty]
+    private SolidColorBrush _customHueBaseBrush = null!;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLassoStrokesOnly))]
     [NotifyPropertyChangedFor(nameof(IsLassoElementsOnly))]
     [NotifyPropertyChangedFor(nameof(IsLassoAllObjects))]
@@ -152,6 +186,10 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsLassoOptionsOpen = false;
             IsTextOptionsOpen = false;
         }
+        else
+        {
+            IsCustomColorPickerOpen = false;
+        }
     }
 
     partial void OnIsEraserOptionsOpenChanged(bool value)
@@ -161,6 +199,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsPenOptionsOpen = false;
             IsLassoOptionsOpen = false;
             IsTextOptionsOpen = false;
+            IsCustomColorPickerOpen = false;
         }
     }
 
@@ -171,6 +210,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsPenOptionsOpen = false;
             IsEraserOptionsOpen = false;
             IsTextOptionsOpen = false;
+            IsCustomColorPickerOpen = false;
         }
     }
 
@@ -182,12 +222,48 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsEraserOptionsOpen = false;
             IsLassoOptionsOpen = false;
         }
+        else
+        {
+            IsCustomColorPickerOpen = false;
+        }
     }
 
+    private readonly UserSettingsService? _settingsService;
+    private readonly UserSettings _userSettings;
+    private bool _isSyncingCustomColor;
+
+    public static IReadOnlyList<ColorSwatchOption> PaletteGridSwatches { get; } = CreatePaletteGridSwatches();
+
     public ToolbarViewModel()
+        : this(null)
     {
-        ColorSwatches = CreateFrozenSwatches();
-        TextColorSwatches = CreateFrozenSwatches();
+    }
+
+    public ToolbarViewModel(UserSettingsService? settingsService)
+    {
+        _settingsService = settingsService;
+        _userSettings = settingsService?.Load() ?? new UserSettings();
+
+        var initialPenSwatches = CreateFrozenSwatches();
+        var initialTextSwatches = CreateFrozenSwatches();
+
+        ColorSwatches = new ObservableCollection<ColorSwatchOption>(initialPenSwatches);
+        TextColorSwatches = new ObservableCollection<ColorSwatchOption>(initialTextSwatches);
+
+        foreach (var hex in _userSettings.CustomColorHexes)
+        {
+            if (TryParseRgb(hex, out var r, out var g, out var b))
+            {
+                var brush1 = new SolidColorBrush(Color.FromRgb(r, g, b));
+                brush1.Freeze();
+                ColorSwatches.Add(new ColorSwatchOption(hex, brush1, isCustom: true));
+
+                var brush2 = new SolidColorBrush(Color.FromRgb(r, g, b));
+                brush2.Freeze();
+                TextColorSwatches.Add(new ColorSwatchOption(hex, brush2, isCustom: true));
+            }
+        }
+
         ThicknessOptions =
         [
             new ThicknessOption(1.5, 6.0),
@@ -205,11 +281,13 @@ public sealed partial class ToolbarViewModel : ObservableObject
         CurrentDrawingAttributes = new DrawingAttributes();
         ApplyAttributesToSharedInstance();
         UpdateSubtoolSelectionStates();
+
+        SetCustomColorRgb(0x25, 0x63, 0xEB);
     }
 
     public DrawingAttributes CurrentDrawingAttributes { get; }
-    public IReadOnlyList<ColorSwatchOption> ColorSwatches { get; }
-    public IReadOnlyList<ColorSwatchOption> TextColorSwatches { get; }
+    public ObservableCollection<ColorSwatchOption> ColorSwatches { get; }
+    public ObservableCollection<ColorSwatchOption> TextColorSwatches { get; }
     public IReadOnlyList<ThicknessOption> ThicknessOptions { get; }
     public IReadOnlyList<EraserSizeOption> EraserSizeOptions { get; }
 
@@ -259,6 +337,155 @@ public sealed partial class ToolbarViewModel : ObservableObject
     partial void OnSelectedEraserSizeChanged(double value) => UpdateSubtoolSelectionStates();
     partial void OnSelectedEraserModeChanged(EraserMode value) => UpdateSubtoolSelectionStates();
     partial void OnSelectedLassoFilterModeChanged(LassoFilterMode value) => UpdateSubtoolSelectionStates();
+
+    partial void OnCustomColorRChanged(byte value)
+    {
+        if (_isSyncingCustomColor) return;
+        _isSyncingCustomColor = true;
+        try { SyncFromRgb(); }
+        finally { _isSyncingCustomColor = false; }
+    }
+
+    partial void OnCustomColorGChanged(byte value)
+    {
+        if (_isSyncingCustomColor) return;
+        _isSyncingCustomColor = true;
+        try { SyncFromRgb(); }
+        finally { _isSyncingCustomColor = false; }
+    }
+
+    partial void OnCustomColorBChanged(byte value)
+    {
+        if (_isSyncingCustomColor) return;
+        _isSyncingCustomColor = true;
+        try { SyncFromRgb(); }
+        finally { _isSyncingCustomColor = false; }
+    }
+
+    partial void OnCustomColorHexInputChanged(string value)
+    {
+        if (_isSyncingCustomColor) return;
+        if (UserSettingsService.TryNormalizeColorHex(value, out _, out var r, out var g, out var b))
+        {
+            _isSyncingCustomColor = true;
+            try
+            {
+                CustomColorR = r;
+                CustomColorG = g;
+                CustomColorB = b;
+                SyncFromRgb(skipHexUpdate: true);
+            }
+            finally { _isSyncingCustomColor = false; }
+        }
+    }
+
+    partial void OnCustomColorHueChanged(double value)
+    {
+        if (_isSyncingCustomColor) return;
+        _isSyncingCustomColor = true;
+        try { SyncFromHsv(); }
+        finally { _isSyncingCustomColor = false; }
+    }
+
+    [RelayCommand]
+    public void ToggleCustomColorPicker()
+    {
+        IsCustomColorPickerOpen = !IsCustomColorPickerOpen;
+        if (IsCustomColorPickerOpen)
+        {
+            var activeHex = IsTextOptionsOpen || ActiveTool == ToolMode.Text
+                ? SelectedTextColorHex
+                : (ActiveTool == ToolMode.Highlighter ? SelectedHighlighterColorHex : SelectedPenColorHex);
+
+            if (TryParseRgb(activeHex, out var r, out var g, out var b))
+            {
+                SetCustomColorRgb(r, g, b);
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void PickPaletteColor(string? hex)
+    {
+        if (!string.IsNullOrWhiteSpace(hex) && TryParseRgb(hex, out var r, out var g, out var b))
+        {
+            SetCustomColorRgb(r, g, b);
+        }
+    }
+
+    [RelayCommand]
+    public void AddCustomColor()
+    {
+        var hex = string.Create(CultureInfo.InvariantCulture, $"#FF{CustomColorR:X2}{CustomColorG:X2}{CustomColorB:X2}");
+
+        if (!ColorSwatches.Any(s => string.Equals(s.Hex, hex, StringComparison.OrdinalIgnoreCase)))
+        {
+            var brush1 = new SolidColorBrush(Color.FromRgb(CustomColorR, CustomColorG, CustomColorB));
+            brush1.Freeze();
+            ColorSwatches.Add(new ColorSwatchOption(hex, brush1, isCustom: true));
+
+            var brush2 = new SolidColorBrush(Color.FromRgb(CustomColorR, CustomColorG, CustomColorB));
+            brush2.Freeze();
+            TextColorSwatches.Add(new ColorSwatchOption(hex, brush2, isCustom: true));
+
+            if (!_userSettings.CustomColorHexes.Contains(hex, StringComparer.OrdinalIgnoreCase))
+            {
+                _userSettings.CustomColorHexes.Add(hex);
+                SaveUserSettings();
+            }
+        }
+
+        if (IsTextOptionsOpen || ActiveTool == ToolMode.Text)
+        {
+            SelectTextColor(hex);
+        }
+        else
+        {
+            SelectColorSwatch(hex);
+        }
+
+        IsCustomColorPickerOpen = false;
+    }
+
+    [RelayCommand]
+    public void RemoveCustomColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return;
+        }
+
+        var matchPen = ColorSwatches.FirstOrDefault(s => s.IsCustom && string.Equals(s.Hex, hex, StringComparison.OrdinalIgnoreCase));
+        if (matchPen is not null)
+        {
+            ColorSwatches.Remove(matchPen);
+        }
+
+        var matchText = TextColorSwatches.FirstOrDefault(s => s.IsCustom && string.Equals(s.Hex, hex, StringComparison.OrdinalIgnoreCase));
+        if (matchText is not null)
+        {
+            TextColorSwatches.Remove(matchText);
+        }
+
+        var removed = _userSettings.CustomColorHexes.RemoveAll(h => string.Equals(h, hex, StringComparison.OrdinalIgnoreCase));
+        if (removed > 0)
+        {
+            SaveUserSettings();
+        }
+
+        if (string.Equals(SelectedPenColorHex, hex, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedPenColorHex = DefaultPenColorHex;
+            ApplyAttributesToSharedInstance();
+        }
+
+        if (string.Equals(SelectedTextColorHex, hex, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedTextColorHex = DefaultTextColorHex;
+        }
+
+        UpdateSubtoolSelectionStates();
+    }
 
     [RelayCommand]
     public void ActivateOrCycleEraser()
@@ -531,6 +758,170 @@ public sealed partial class ToolbarViewModel : ObservableObject
         }
 
         return Color.FromArgb(defaultAlpha, 0x1E, 0x1E, 0x1E);
+    }
+
+    public void SetCustomColorRgb(byte r, byte g, byte b)
+    {
+        _isSyncingCustomColor = true;
+        try
+        {
+            CustomColorR = r;
+            CustomColorG = g;
+            CustomColorB = b;
+            SyncFromRgb();
+        }
+        finally
+        {
+            _isSyncingCustomColor = false;
+        }
+    }
+
+    public void SetCustomColorSaturationAndValue(double s, double v)
+    {
+        _isSyncingCustomColor = true;
+        try
+        {
+            CustomColorSaturation = Math.Clamp(s, 0.0, 1.0);
+            CustomColorValue = Math.Clamp(v, 0.0, 1.0);
+            SyncFromHsv();
+        }
+        finally
+        {
+            _isSyncingCustomColor = false;
+        }
+    }
+
+    public void SetCustomColorHue(double h)
+    {
+        _isSyncingCustomColor = true;
+        try
+        {
+            CustomColorHue = Math.Clamp(h, 0.0, 360.0);
+            SyncFromHsv();
+        }
+        finally
+        {
+            _isSyncingCustomColor = false;
+        }
+    }
+
+    private void SyncFromRgb(bool skipHexUpdate = false)
+    {
+        RgbToHsv(CustomColorR, CustomColorG, CustomColorB, out var h, out var s, out var v);
+        CustomColorHue = h;
+        CustomColorSaturation = s;
+        CustomColorValue = v;
+
+        if (!skipHexUpdate)
+        {
+            CustomColorHexInput = $"#{CustomColorR:X2}{CustomColorG:X2}{CustomColorB:X2}";
+        }
+
+        UpdatePreviewBrushes();
+    }
+
+    private void SyncFromHsv()
+    {
+        HsvToRgb(CustomColorHue, CustomColorSaturation, CustomColorValue, out var r, out var g, out var b);
+        CustomColorR = r;
+        CustomColorG = g;
+        CustomColorB = b;
+        CustomColorHexInput = $"#{r:X2}{g:X2}{b:X2}";
+
+        UpdatePreviewBrushes();
+    }
+
+    private void UpdatePreviewBrushes()
+    {
+        var preview = new SolidColorBrush(Color.FromRgb(CustomColorR, CustomColorG, CustomColorB));
+        preview.Freeze();
+        CustomColorPreviewBrush = preview;
+
+        HsvToRgb(CustomColorHue, 1.0, 1.0, out var hr, out var hg, out var hb);
+        var hueBase = new SolidColorBrush(Color.FromRgb(hr, hg, hb));
+        hueBase.Freeze();
+        CustomHueBaseBrush = hueBase;
+    }
+
+    public static void RgbToHsv(byte r, byte g, byte b, out double h, out double s, out double v)
+    {
+        double rd = r / 255.0;
+        double gd = g / 255.0;
+        double bd = b / 255.0;
+
+        double max = Math.Max(rd, Math.Max(gd, bd));
+        double min = Math.Min(rd, Math.Min(gd, bd));
+        double delta = max - min;
+
+        v = max;
+        s = max == 0.0 ? 0.0 : delta / max;
+
+        if (delta == 0.0)
+        {
+            h = 0.0;
+        }
+        else if (Math.Abs(max - rd) < 0.0001)
+        {
+            h = 60.0 * (((gd - bd) / delta) % 6.0);
+            if (h < 0.0) h += 360.0;
+        }
+        else if (Math.Abs(max - gd) < 0.0001)
+        {
+            h = 60.0 * (((bd - rd) / delta) + 2.0);
+        }
+        else
+        {
+            h = 60.0 * (((rd - gd) / delta) + 4.0);
+        }
+    }
+
+    public static void HsvToRgb(double h, double s, double v, out byte r, out byte g, out byte b)
+    {
+        h = ((h % 360.0) + 360.0) % 360.0;
+        s = Math.Clamp(s, 0.0, 1.0);
+        v = Math.Clamp(v, 0.0, 1.0);
+
+        double c = v * s;
+        double x = c * (1.0 - Math.Abs((h / 60.0 % 2.0) - 1.0));
+        double m = v - c;
+
+        double rd = 0, gd = 0, bd = 0;
+        if (h < 60) { rd = c; gd = x; bd = 0; }
+        else if (h < 120) { rd = x; gd = c; bd = 0; }
+        else if (h < 180) { rd = 0; gd = c; bd = x; }
+        else if (h < 240) { rd = 0; gd = x; bd = c; }
+        else if (h < 300) { rd = x; gd = 0; bd = c; }
+        else { rd = c; gd = 0; bd = x; }
+
+        r = (byte)Math.Clamp(Math.Round((rd + m) * 255.0), 0, 255);
+        g = (byte)Math.Clamp(Math.Round((gd + m) * 255.0), 0, 255);
+        b = (byte)Math.Clamp(Math.Round((bd + m) * 255.0), 0, 255);
+    }
+
+    private static List<ColorSwatchOption> CreatePaletteGridSwatches()
+    {
+        var hexes = new[]
+        {
+            "#FFFCA5A5", "#FFFDBA74", "#FFFDE047", "#FF86EFAC", "#FF67E8F9", "#FF93C5FD", "#FFC4B5FD", "#FFF472B6",
+            "#FFEF4444", "#FFF97316", "#FFEAB308", "#FF22C55E", "#FF06B6D4", "#FF3B82F6", "#FF8B5CF6", "#FFEC4899",
+            "#FF991B1B", "#FFC2410C", "#FFA16207", "#FF15803D", "#FF0E7490", "#FF1D4ED8", "#FF6D28D9", "#FFBE185D"
+        };
+        var list = new List<ColorSwatchOption>(hexes.Length);
+        foreach (var hex in hexes)
+        {
+            if (TryParseRgb(hex, out var r, out var g, out var b))
+            {
+                var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+                brush.Freeze();
+                list.Add(new ColorSwatchOption(hex, brush));
+            }
+        }
+        return list;
+    }
+
+    private void SaveUserSettings()
+    {
+        _settingsService?.Save(_userSettings);
     }
 
     private static bool TryParseRgb(string hex, out byte r, out byte g, out byte b)

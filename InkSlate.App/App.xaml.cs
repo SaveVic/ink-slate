@@ -82,7 +82,8 @@ public partial class App : Application
     {
         services.AddSingleton<NoteDocument>();
         services.AddSingleton<UndoRedoManager>();
-        services.AddSingleton<ToolbarViewModel>();
+        services.AddSingleton<InkSlate.Core.Services.UserSettingsService>();
+        services.AddSingleton<ToolbarViewModel>(sp => new ToolbarViewModel(sp.GetRequiredService<InkSlate.Core.Services.UserSettingsService>()));
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
     }

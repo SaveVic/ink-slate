@@ -15,5 +15,8 @@ namespace InkSlate.Core.Serialization;
 [JsonSerializable(typeof(CanvasElement))]
 [JsonSerializable(typeof(TextCanvasElement))]
 [JsonSerializable(typeof(ImageCanvasElement))]
+[JsonSerializable(typeof(UserSettings))]
+[JsonSerializable(typeof(CustomPenPreset))]
+[JsonSerializable(typeof(CanvasClipboardPayload))]
 public partial class InkSlateJsonContext : JsonSerializerContext;
 

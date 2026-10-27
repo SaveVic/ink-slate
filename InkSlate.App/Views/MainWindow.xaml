@@ -807,92 +807,269 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
-                    <!-- 6 Curated Color Swatches (Zero text labels) -->
-                    <ItemsControl x:Name="ColorSwatchesItemsControl"
-                                  ItemsSource="{Binding Toolbar.ColorSwatches}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
-                                <Button Width="26"
-                                        Height="26"
-                                        Margin="2"
-                                        Padding="0"
-                                        Cursor="Hand"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Command="{Binding DataContext.Toolbar.SelectColorSwatchCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
-                                        CommandParameter="{Binding Hex}">
-                                    <Grid>
-                                        <Border x:Name="SelectionRing"
-                                                Width="24"
-                                                Height="24"
-                                                CornerRadius="12"
-                                                BorderThickness="2"
-                                                BorderBrush="Transparent" />
-                                        <Ellipse Width="18"
-                                                 Height="18"
-                                                 Fill="{Binding FrozenBrush}"
-                                                 Stroke="#33000000"
-                                                 StrokeThickness="1" />
-                                    </Grid>
-                                </Button>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                <StackPanel Orientation="Vertical">
+                    <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+                        <!-- Color Swatches (Curated + User Custom) -->
+                        <ItemsControl x:Name="ColorSwatchesItemsControl"
+                                      ItemsSource="{Binding Toolbar.ColorSwatches}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                    <Button Width="26"
+                                            Height="26"
+                                            Margin="2"
+                                            Padding="0"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.Toolbar.SelectColorSwatchCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                            CommandParameter="{Binding Hex}"
+                                            MouseRightButtonUp="ColorSwatchButton_MouseRightButtonUp">
+                                        <Button.ToolTip>
+                                            <ToolTip Content="{Binding Hex}" />
+                                        </Button.ToolTip>
+                                        <Grid>
+                                            <Border x:Name="SelectionRing"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="12"
+                                                    BorderThickness="2"
+                                                    BorderBrush="Transparent" />
+                                            <Ellipse Width="18"
+                                                     Height="18"
+                                                     Fill="{Binding FrozenBrush}"
+                                                     Stroke="#33000000"
+                                                     StrokeThickness="1" />
+                                        </Grid>
+                                    </Button>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+                        <!-- Add Custom Color Button -->
+                        <ui:Button x:Name="AddCustomPenColorButton"
+                                   Command="{Binding Toolbar.ToggleCustomColorPickerCommand}"
+                                   Width="26"
+                                   Height="26"
+                                   Margin="2"
+                                   Padding="0"
+                                   ToolTip="Custom Color (RGB / Hex / Palette)"
+                                   Style="{StaticResource ToolbarIconButtonStyle}">
+                            <ui:SymbolIcon Symbol="Add24" FontSize="14" />
+                        </ui:Button>
 
-                    <!-- 4 Thickness Dots (Zero text labels) -->
-                    <ItemsControl x:Name="ThicknessDotsItemsControl"
-                                  ItemsSource="{Binding Toolbar.ThicknessOptions}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:ThicknessOption}">
-                                <Button Width="26"
-                                        Height="26"
-                                        Margin="2"
-                                        Padding="0"
-                                        Cursor="Hand"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Command="{Binding DataContext.Toolbar.SelectPenThicknessCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
-                                        CommandParameter="{Binding ThicknessDip}">
-                                    <Grid>
-                                        <Border x:Name="SelectionRing"
-                                                Width="24"
-                                                Height="24"
-                                                CornerRadius="12"
-                                                BorderThickness="2"
-                                                BorderBrush="Transparent" />
-                                        <Ellipse x:Name="Dot"
-                                                 Width="{Binding DotDiameter}"
-                                                 Height="{Binding DotDiameter}"
-                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    </Grid>
-                                </Button>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                        <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+                        <!-- 4 Thickness Dots (Zero text labels) -->
+                        <ItemsControl x:Name="ThicknessDotsItemsControl"
+                                      ItemsSource="{Binding Toolbar.ThicknessOptions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ThicknessOption}">
+                                    <Button Width="26"
+                                            Height="26"
+                                            Margin="2"
+                                            Padding="0"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.Toolbar.SelectPenThicknessCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                            CommandParameter="{Binding ThicknessDip}">
+                                        <Grid>
+                                            <Border x:Name="SelectionRing"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="12"
+                                                    BorderThickness="2"
+                                                    BorderBrush="Transparent" />
+                                            <Ellipse x:Name="Dot"
+                                                     Width="{Binding DotDiameter}"
+                                                     Height="{Binding DotDiameter}"
+                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        </Grid>
+                                    </Button>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                            <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Collapsible Custom Color Picker Panel -->
+                    <Border x:Name="PenCustomColorPickerPanel"
+                            Margin="0,8,0,2"
+                            Padding="8"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="6"
+                            Visibility="{Binding Toolbar.IsCustomColorPickerOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Width="256">
+                        <StackPanel Orientation="Vertical">
+                            <!-- 1. Interactive 2D Color Spectrum Box (Saturation & Value) -->
+                            <Border x:Name="PenColorSpectrumBox"
+                                    Height="90"
+                                    CornerRadius="4"
+                                    ClipToBounds="True"
+                                    Cursor="Cross"
+                                    Background="{Binding Toolbar.CustomHueBaseBrush}"
+                                    MouseLeftButtonDown="ColorSpectrumBox_MouseLeftButtonDown"
+                                    MouseMove="ColorSpectrumBox_MouseMove"
+                                    MouseLeftButtonUp="ColorSpectrumBox_MouseLeftButtonUp">
+                                <Grid>
+                                    <Rectangle>
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FFFFFFFF" Offset="0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                    <Rectangle>
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#00000000" Offset="0" />
+                                                <GradientStop Color="#FF000000" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                </Grid>
+                            </Border>
+
+                            <!-- Hue Slider (0-360) with Rainbow Gradient -->
+                            <Grid Margin="0,6,0,6">
+                                <Border Height="8" CornerRadius="4" ClipToBounds="True">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                            <GradientStop Color="#FFFF0000" Offset="0.0" />
+                                            <GradientStop Color="#FFFFFF00" Offset="0.17" />
+                                            <GradientStop Color="#FF00FF00" Offset="0.33" />
+                                            <GradientStop Color="#FF00FFFF" Offset="0.5" />
+                                            <GradientStop Color="#FF0000FF" Offset="0.67" />
+                                            <GradientStop Color="#FFFF00FF" Offset="0.83" />
+                                            <GradientStop Color="#FFFF0000" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <Slider Minimum="0"
+                                        Maximum="360"
+                                        Value="{Binding Toolbar.CustomColorHue, Mode=TwoWay}"
+                                        Opacity="0.85"
+                                        VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 2. 24 Quick Spectrum Palette Grid -->
+                            <ItemsControl ItemsSource="{x:Static vm:ToolbarViewModel.PaletteGridSwatches}"
+                                          Margin="0,0,0,6">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                        <Button Width="24"
+                                                Height="18"
+                                                Margin="1"
+                                                Padding="0"
+                                                Cursor="Hand"
+                                                Background="{Binding FrozenBrush}"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.Toolbar.PickPaletteColorCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                                CommandParameter="{Binding Hex}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" CornerRadius="2" BorderThickness="0.5" BorderBrush="#33000000" />
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 3. RGB Sliders and Numeric Inputs -->
+                            <Grid Margin="0,2,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="40" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- R -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="R" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FFEF4444" />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorR, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Toolbar.CustomColorR, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+
+                                <!-- G -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="G" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FF22C55E" />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorG, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Toolbar.CustomColorG, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+
+                                <!-- B -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="B" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FF3B82F6" />
+                                <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorB, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Toolbar.CustomColorB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 4. Hex Input, Live Preview, and Add & Use Button -->
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Live Preview -->
+                                <Ellipse Grid.Column="0" Width="24" Height="24" Fill="{Binding Toolbar.CustomColorPreviewBrush}" Stroke="#44000000" StrokeThickness="1" />
+
+                                <!-- Hex Input -->
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding Toolbar.CustomColorHexInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="11"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         Height="26"
+                                         MaxLength="9"
+                                         ToolTip="Hex Color Code (#RRGGBB)" />
+
+                                <!-- Add & Use Button -->
+                                <ui:Button Grid.Column="4"
+                                           Command="{Binding Toolbar.AddCustomColorCommand}"
+                                           Content="Add &amp; Use"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Appearance="Primary"
+                                           Height="26"
+                                           Padding="4,0"
+                                           HorizontalAlignment="Stretch"
+                                           ToolTip="Add to custom swatches and apply" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -1088,138 +1265,315 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
-                    <!-- Decrease Font Size -->
-                    <ui:Button Command="{Binding Toolbar.DecreaseTextFontSizeCommand}"
-                               Content="A-"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Width="28"
-                               Height="28"
-                               Margin="2,0"
-                               Padding="0"
-                               Appearance="Transparent"
-                               ToolTip="Decrease Font Size" />
+                <StackPanel Orientation="Vertical">
+                    <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+                        <!-- Decrease Font Size -->
+                        <ui:Button Command="{Binding Toolbar.DecreaseTextFontSizeCommand}"
+                                   Content="A-"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Width="28"
+                                   Height="28"
+                                   Margin="2,0"
+                                   Padding="0"
+                                   Appearance="Transparent"
+                                   ToolTip="Decrease Font Size" />
 
-                    <!-- Font Size Display -->
-                    <TextBlock Text="{Binding Toolbar.SelectedTextFontSize, StringFormat={}{0:0}}"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"
-                               FontWeight="SemiBold"
-                               FontSize="12"
-                               Width="22"
-                               TextAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <!-- Font Size Display -->
+                        <TextBlock Text="{Binding Toolbar.SelectedTextFontSize, StringFormat={}{0:0}}"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Width="22"
+                                   TextAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-                    <!-- Increase Font Size -->
-                    <ui:Button Command="{Binding Toolbar.IncreaseTextFontSizeCommand}"
-                               Content="A+"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Width="28"
-                               Height="28"
-                               Margin="2,0"
-                               Padding="0"
-                               Appearance="Transparent"
-                               ToolTip="Increase Font Size" />
+                        <!-- Increase Font Size -->
+                        <ui:Button Command="{Binding Toolbar.IncreaseTextFontSizeCommand}"
+                                   Content="A+"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Width="28"
+                                   Height="28"
+                                   Margin="2,0"
+                                   Padding="0"
+                                   Appearance="Transparent"
+                                   ToolTip="Increase Font Size" />
 
-                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+                        <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
-                    <!-- Bold Button -->
-                    <ui:Button Command="{Binding Toolbar.ToggleTextBoldCommand}"
-                               Content="B"
-                               FontWeight="Bold"
-                               Width="28"
-                               Height="28"
-                               Margin="2,0"
-                               Padding="0"
-                               ToolTip="Bold">
-                        <ui:Button.Style>
-                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Toolbar.IsTextBold}" Value="True">
-                                        <Setter Property="Appearance" Value="Primary" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:Button.Style>
-                    </ui:Button>
+                        <!-- Bold Button -->
+                        <ui:Button Command="{Binding Toolbar.ToggleTextBoldCommand}"
+                                   Content="B"
+                                   FontWeight="Bold"
+                                   Width="28"
+                                   Height="28"
+                                   Margin="2,0"
+                                   Padding="0"
+                                   ToolTip="Bold">
+                            <ui:Button.Style>
+                                <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Toolbar.IsTextBold}" Value="True">
+                                            <Setter Property="Appearance" Value="Primary" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
 
-                    <!-- Italic Button -->
-                    <ui:Button Command="{Binding Toolbar.ToggleTextItalicCommand}"
-                               Content="I"
-                               FontStyle="Italic"
-                               FontWeight="SemiBold"
-                               Width="28"
-                               Height="28"
-                               Margin="2,0"
-                               Padding="0"
-                               ToolTip="Italic">
-                        <ui:Button.Style>
-                            <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Toolbar.IsTextItalic}" Value="True">
-                                        <Setter Property="Appearance" Value="Primary" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:Button.Style>
-                    </ui:Button>
+                        <!-- Italic Button -->
+                        <ui:Button Command="{Binding Toolbar.ToggleTextItalicCommand}"
+                                   Content="I"
+                                   FontStyle="Italic"
+                                   FontWeight="SemiBold"
+                                   Width="28"
+                                   Height="28"
+                                   Margin="2,0"
+                                   Padding="0"
+                                   ToolTip="Italic">
+                            <ui:Button.Style>
+                                <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Toolbar.IsTextItalic}" Value="True">
+                                            <Setter Property="Appearance" Value="Primary" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
 
-                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+                        <Border Style="{StaticResource SubtoolSeparatorStyle}" />
 
-                    <!-- Curated Color Swatches for Text -->
-                    <ItemsControl ItemsSource="{Binding Toolbar.TextColorSwatches}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
-                                <Button Width="26"
-                                        Height="26"
-                                        Margin="2"
-                                        Padding="0"
-                                        Cursor="Hand"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Command="{Binding DataContext.Toolbar.SelectTextColorCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
-                                        CommandParameter="{Binding Hex}">
-                                    <Grid>
-                                        <Border x:Name="SelectionRing"
-                                                Width="24"
-                                                Height="24"
-                                                CornerRadius="12"
-                                                BorderThickness="2"
-                                                BorderBrush="Transparent" />
-                                        <Ellipse Width="18"
-                                                 Height="18"
-                                                 Fill="{Binding FrozenBrush}"
-                                                 Stroke="#33000000"
-                                                 StrokeThickness="1" />
-                                    </Grid>
-                                </Button>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        <!-- Curated & Custom Color Swatches for Text -->
+                        <ItemsControl ItemsSource="{Binding Toolbar.TextColorSwatches}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                    <Button Width="26"
+                                            Height="26"
+                                            Margin="2"
+                                            Padding="0"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.Toolbar.SelectTextColorCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                            CommandParameter="{Binding Hex}"
+                                            MouseRightButtonUp="ColorSwatchButton_MouseRightButtonUp">
+                                        <Button.ToolTip>
+                                            <ToolTip Content="{Binding Hex}" />
+                                        </Button.ToolTip>
+                                        <Grid>
+                                            <Border x:Name="SelectionRing"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="12"
+                                                    BorderThickness="2"
+                                                    BorderBrush="Transparent" />
+                                            <Ellipse Width="18"
+                                                     Height="18"
+                                                     Fill="{Binding FrozenBrush}"
+                                                     Stroke="#33000000"
+                                                     StrokeThickness="1" />
+                                        </Grid>
+                                    </Button>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                    <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+                        <!-- Add Custom Color Button for Text -->
+                        <ui:Button x:Name="AddCustomTextColorButton"
+                                   Command="{Binding Toolbar.ToggleCustomColorPickerCommand}"
+                                   Width="26"
+                                   Height="26"
+                                   Margin="2"
+                                   Padding="0"
+                                   ToolTip="Custom Color (RGB / Hex / Palette)"
+                                   Style="{StaticResource ToolbarIconButtonStyle}">
+                            <ui:SymbolIcon Symbol="Add24" FontSize="14" />
+                        </ui:Button>
 
-                    <!-- Delete Selected Text Object -->
-                    <ui:Button Command="{Binding DeleteSelectedCommand}"
-                               Width="28"
-                               Height="28"
-                               Margin="2,0"
-                               Padding="0"
-                               ToolTip="Delete (Del)">
-                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#E02020" />
-                    </ui:Button>
+                        <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+                        <!-- Delete Selected Text Object -->
+                        <ui:Button Command="{Binding DeleteSelectedCommand}"
+                                   Width="28"
+                                   Height="28"
+                                   Margin="2,0"
+                                   Padding="0"
+                                   ToolTip="Delete (Del)">
+                            <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#E02020" />
+                        </ui:Button>
+                    </StackPanel>
+
+                    <!-- Collapsible Custom Color Picker Panel for Text -->
+                    <Border x:Name="TextCustomColorPickerPanel"
+                            Margin="0,8,0,2"
+                            Padding="8"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="6"
+                            Visibility="{Binding Toolbar.IsCustomColorPickerOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Width="256">
+                        <StackPanel Orientation="Vertical">
+                            <!-- 1. Interactive 2D Color Spectrum Box (Saturation & Value) -->
+                            <Border x:Name="TextColorSpectrumBox"
+                                    Height="90"
+                                    CornerRadius="4"
+                                    ClipToBounds="True"
+                                    Cursor="Cross"
+                                    Background="{Binding Toolbar.CustomHueBaseBrush}"
+                                    MouseLeftButtonDown="ColorSpectrumBox_MouseLeftButtonDown"
+                                    MouseMove="ColorSpectrumBox_MouseMove"
+                                    MouseLeftButtonUp="ColorSpectrumBox_MouseLeftButtonUp">
+                                <Grid>
+                                    <Rectangle>
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FFFFFFFF" Offset="0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                    <Rectangle>
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#00000000" Offset="0" />
+                                                <GradientStop Color="#FF000000" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                </Grid>
+                            </Border>
+
+                            <!-- Hue Slider (0-360) with Rainbow Gradient -->
+                            <Grid Margin="0,6,0,6">
+                                <Border Height="8" CornerRadius="4" ClipToBounds="True">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                            <GradientStop Color="#FFFF0000" Offset="0.0" />
+                                            <GradientStop Color="#FFFFFF00" Offset="0.17" />
+                                            <GradientStop Color="#FF00FF00" Offset="0.33" />
+                                            <GradientStop Color="#FF00FFFF" Offset="0.5" />
+                                            <GradientStop Color="#FF0000FF" Offset="0.67" />
+                                            <GradientStop Color="#FFFF00FF" Offset="0.83" />
+                                            <GradientStop Color="#FFFF0000" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <Slider Minimum="0"
+                                        Maximum="360"
+                                        Value="{Binding Toolbar.CustomColorHue, Mode=TwoWay}"
+                                        Opacity="0.85"
+                                        VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 2. 24 Quick Spectrum Palette Grid -->
+                            <ItemsControl ItemsSource="{x:Static vm:ToolbarViewModel.PaletteGridSwatches}"
+                                          Margin="0,0,0,6">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ColorSwatchOption}">
+                                        <Button Width="24"
+                                                Height="18"
+                                                Margin="1"
+                                                Padding="0"
+                                                Cursor="Hand"
+                                                Background="{Binding FrozenBrush}"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.Toolbar.PickPaletteColorCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                                CommandParameter="{Binding Hex}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" CornerRadius="2" BorderThickness="0.5" BorderBrush="#33000000" />
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 3. RGB Sliders and Numeric Inputs -->
+                            <Grid Margin="0,2,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="40" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- R -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="R" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FFEF4444" />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorR, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Toolbar.CustomColorR, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+
+                                <!-- G -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="G" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FF22C55E" />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorG, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Toolbar.CustomColorG, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+
+                                <!-- B -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="B" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#FF3B82F6" />
+                                <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Toolbar.CustomColorB, Mode=TwoWay}" Margin="6,1" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Toolbar.CustomColorB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2,1" Height="20" HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 4. Hex Input, Live Preview, and Add & Use Button -->
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Live Preview -->
+                                <Ellipse Grid.Column="0" Width="24" Height="24" Fill="{Binding Toolbar.CustomColorPreviewBrush}" Stroke="#44000000" StrokeThickness="1" />
+
+                                <!-- Hex Input -->
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding Toolbar.CustomColorHexInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="11"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         Height="26"
+                                         MaxLength="9"
+                                         ToolTip="Hex Color Code (#RRGGBB)" />
+
+                                <!-- Add & Use Button -->
+                                <ui:Button Grid.Column="4"
+                                           Command="{Binding Toolbar.AddCustomColorCommand}"
+                                           Content="Add &amp; Use"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Appearance="Primary"
+                                           Height="26"
+                                           Padding="4,0"
+                                           HorizontalAlignment="Stretch"
+                                           ToolTip="Add to custom swatches and apply" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

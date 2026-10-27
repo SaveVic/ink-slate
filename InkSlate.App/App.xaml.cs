@@ -29,8 +29,34 @@ public partial class App : Application
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
 
+        TryRegisterFileAssociation();
+
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
+
+        if (InkSlate.Core.Services.StartupArgumentResolver.TryResolveNotexFilePath(e.Args, out var targetPath) &&
+            !string.IsNullOrWhiteSpace(targetPath))
+        {
+            var mainVm = _serviceProvider.GetRequiredService<MainViewModel>();
+            _ = mainVm.LoadFromFileAsync(targetPath);
+        }
+    }
+
+    private static void TryRegisterFileAssociation()
+    {
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(exePath) &&
+                string.Equals(System.IO.Path.GetExtension(exePath), ".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                InkSlate.Core.Services.FileAssociationService.RegisterCurrentUserAssociation(exePath);
+            }
+        }
+        catch
+        {
+            // Best-effort: silent fallback if registry writes are prohibited
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

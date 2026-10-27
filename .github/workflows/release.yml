@@ -81,6 +81,12 @@ jobs:
             -p:Version=${{ steps.get_version.outputs.version }} `
             -o ./dist/win-arm64
 
+      - name: Build Windows Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.get_version.outputs.version }}"
+          iscc /DMyAppVersion="$ver" /O"./artifacts" /F"InkSlate-Setup-v$ver-win-x64" installer/InkSlate.iss
+
       - name: Package Release Archives
         shell: pwsh
         run: |
@@ -92,7 +98,7 @@ jobs:
           Compress-Archive -Path ./dist/win-arm64/* -DestinationPath "./artifacts/InkSlate-v$ver-win-arm64.zip" -Force
 
           # Generate SHA256 Checksums
-          Get-FileHash -Algorithm SHA256 ./artifacts/*.zip | ForEach-Object {
+          Get-FileHash -Algorithm SHA256 ./artifacts/*.zip, ./artifacts/*.exe | ForEach-Object {
             "$($_.Hash)  $([System.IO.Path]::GetFileName($_.Path))"
           } | Out-File -Encoding ascii ./artifacts/checksums.txt
 
@@ -103,6 +109,7 @@ jobs:
           name: InkSlate ${{ steps.get_version.outputs.tag_name }}
           files: |
             ./artifacts/*.zip
+            ./artifacts/*.exe
             ./artifacts/checksums.txt
           generate_release_notes: true
           draft: false

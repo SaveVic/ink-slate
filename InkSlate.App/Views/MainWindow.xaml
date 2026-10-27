@@ -2090,6 +2090,96 @@
                 </StackPanel>
             </Border>
 
+            <!-- Bottom-Left PDF Export Progress / Status Pill -->
+            <Border x:Name="ExportStatusPill"
+                    Grid.Row="0"
+                    Grid.RowSpan="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Margin="16"
+                    Padding="12,6"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Background="{StaticResource ToolbarSolidBackgroundBrush}"
+                    BorderBrush="{StaticResource ToolbarSolidBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Effect="{StaticResource FloatingSurfaceShadow}"
+                    Visibility="{Binding IsExportStatusVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- In-Progress State -->
+                    <StackPanel x:Name="ExportInProgressPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsExportCompleted}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="16" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="Exporting PDF" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <ProgressBar x:Name="ExportProgressBar"
+                                     Width="120"
+                                     Height="6"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding ExportProgressPercentage}"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,8,0" />
+                        <TextBlock x:Name="ExportProgressText"
+                                   Text="{Binding ExportProgressPercentage, StringFormat={}{0:0}%}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   MinWidth="30"
+                                   TextAlignment="Right" />
+                    </StackPanel>
+
+                    <!-- Completed State -->
+                    <StackPanel x:Name="ExportCompletedPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsExportCompleted}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="16" Foreground="#107C41" Margin="0,0,8,0" />
+                        <TextBlock x:Name="ExportFinishedText"
+                                   Text="{Binding ExportStatusMessage, FallbackValue='Export finished'}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Close / Dismiss Button -->
+                    <ui:Button x:Name="DismissExportStatusButton"
+                               Command="{Binding DismissExportStatusCommand}"
+                               Width="20"
+                               Height="20"
+                               Padding="0"
+                               CornerRadius="4"
+                               Margin="8,0,0,0"
+                               Appearance="Transparent"
+                               ToolTip="Dismiss">
+                        <ui:SymbolIcon Symbol="Dismiss16" FontSize="10" />
+                    </ui:Button>
+                </StackPanel>
+            </Border>
+
             <!-- Bottom-Right Minimalist Corner HUD Pill -->
             <Border x:Name="CornerHudPill"
                     Grid.Row="0"

@@ -287,6 +287,72 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isExportingPdf;
 
+    [ObservableProperty]
+    private double _exportProgressPercentage;
+
+    [ObservableProperty]
+    private bool _isExportStatusVisible;
+
+    [ObservableProperty]
+    private bool _isExportCompleted;
+
+    [ObservableProperty]
+    private string _exportStatusMessage = string.Empty;
+
+    public static readonly TimeSpan DefaultExportStatusDismissDelay = TimeSpan.FromSeconds(3.5);
+    public TimeSpan ExportStatusDismissDelay { get; set; } = DefaultExportStatusDismissDelay;
+
+    private CancellationTokenSource? _exportStatusDismissCts;
+
+    public void CancelExportStatusDismissTimer()
+    {
+        _exportStatusDismissCts?.Cancel();
+        _exportStatusDismissCts?.Dispose();
+        _exportStatusDismissCts = null;
+    }
+
+    public void StartExportStatusDismissTimer()
+    {
+        CancelExportStatusDismissTimer();
+        var cts = new CancellationTokenSource();
+        _exportStatusDismissCts = cts;
+        var delay = ExportStatusDismissDelay;
+        if (delay <= TimeSpan.Zero)
+        {
+            IsExportStatusVisible = false;
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, cts.Token).ConfigureAwait(false);
+                if (!cts.IsCancellationRequested)
+                {
+                    IsExportStatusVisible = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
+    }
+
+    [RelayCommand]
+    public void DismissExportStatus()
+    {
+        CancelExportStatusDismissTimer();
+        IsExportStatusVisible = false;
+    }
+
+    private sealed class ActionProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        private readonly Action<T> _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+
+        public void Report(T value) => _handler(value);
+    }
+
     public bool IsPdfExportAll => PdfExportMode == PdfExportPageMode.AllPages;
     public bool IsPdfExportCurrent => PdfExportMode == PdfExportPageMode.CurrentPage;
     public bool IsPdfExportRange => PdfExportMode == PdfExportPageMode.CustomRange;
@@ -802,14 +868,35 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
+            CancelExportStatusDismissTimer();
             IsExportingPdf = true;
+            IsExportStatusVisible = true;
+            IsExportCompleted = false;
+            ExportProgressPercentage = 0.0;
+            ExportStatusMessage = "Exporting...";
+            IsPdfExportOpen = false;
+
+            var progress = new ActionProgress<PdfExportProgress>(p =>
+            {
+                ExportProgressPercentage = p.Percentage;
+            });
+
             await PdfExportService.ExportToFileAsync(
                 Document,
                 targetIndices,
                 selectedPath,
-                strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes);
+                strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes,
+                progress: progress);
 
-            IsPdfExportOpen = false;
+            ExportProgressPercentage = 100.0;
+            IsExportCompleted = true;
+            ExportStatusMessage = "Export finished";
+            StartExportStatusDismissTimer();
+        }
+        catch
+        {
+            IsExportStatusVisible = false;
+            throw;
         }
         finally
         {

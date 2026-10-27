@@ -9,6 +9,20 @@ using SkiaSharp;
 namespace InkSlate.Core.Services;
 
 /// <summary>
+/// Represents the progress of a PDF export operation.
+/// </summary>
+/// <param name="CompletedPages">The number of pages fully exported so far.</param>
+/// <param name="TotalPages">The total number of pages to export.</param>
+public readonly record struct PdfExportProgress(int CompletedPages, int TotalPages)
+{
+    /// <summary>
+    /// Gets the completion percentage clamped between 0.0 and 100.0.
+    /// If <see cref="TotalPages"/> is zero, returns 100.0.
+    /// </summary>
+    public double Percentage => TotalPages > 0 ? Math.Clamp((double)CompletedPages / TotalPages * 100.0, 0.0, 100.0) : 100.0;
+}
+
+/// <summary>
 /// High-performance SkiaSharp vector PDF export engine.
 /// Renders NoteDocument pages with 1:1 DIP-to-point coordinate alignment, non-destructive image cropping,
 /// wrapped vector text glyphs, and smooth cubic Bézier vector ink paths.
@@ -25,6 +39,7 @@ public static class PdfExportService
         IReadOnlyList<int> pageIndices,
         Stream outputStream,
         Func<Guid, StrokeCollection?>? strokesProvider = null,
+        IProgress<PdfExportProgress>? progress = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -37,12 +52,18 @@ public static class PdfExportService
             throw new InvalidOperationException("Failed to initialize SkiaSharp PDF document.");
         }
 
+        var totalPages = pageIndices.Count;
+        var completedPages = 0;
+        progress?.Report(new PdfExportProgress(0, totalPages));
+
         foreach (var pageIndex in pageIndices)
         {
             ct.ThrowIfCancellationRequested();
 
             if (pageIndex < 0 || pageIndex >= doc.Pages.Count)
             {
+                completedPages++;
+                progress?.Report(new PdfExportProgress(completedPages, totalPages));
                 continue;
             }
 
@@ -83,6 +104,8 @@ public static class PdfExportService
             }
 
             pdfDoc.EndPage();
+            completedPages++;
+            progress?.Report(new PdfExportProgress(completedPages, totalPages));
         }
 
         pdfDoc.Close();
@@ -97,13 +120,14 @@ public static class PdfExportService
         IReadOnlyList<int> pageIndices,
         Stream outputStream,
         Func<Guid, StrokeCollection?>? strokesProvider = null,
+        IProgress<PdfExportProgress>? progress = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(doc);
         ArgumentNullException.ThrowIfNull(pageIndices);
         ArgumentNullException.ThrowIfNull(outputStream);
 
-        return Task.Run(() => Export(doc, pageIndices, outputStream, strokesProvider, ct), ct);
+        return Task.Run(() => Export(doc, pageIndices, outputStream, strokesProvider, progress, ct), ct);
     }
 
     /// <summary>
@@ -115,6 +139,7 @@ public static class PdfExportService
         IReadOnlyList<int> pageIndices,
         string targetPath,
         Func<Guid, StrokeCollection?>? strokesProvider = null,
+        IProgress<PdfExportProgress>? progress = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -141,7 +166,7 @@ public static class PdfExportService
                     FileShare.None,
                     bufferSize: 64 * 1024);
 
-                Export(doc, pageIndices, fs, strokesProvider, ct);
+                Export(doc, pageIndices, fs, strokesProvider, progress, ct);
             }, ct).ConfigureAwait(false);
 
             ct.ThrowIfCancellationRequested();

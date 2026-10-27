@@ -193,6 +193,15 @@ public partial class MainWindow : FluentWindow
                 return true;
             }
 
+            if (key == Key.C)
+            {
+                if (ViewModel.CopySelectedCommand.CanExecute(null))
+                {
+                    ViewModel.CopySelectedCommand.Execute(null);
+                    return true;
+                }
+            }
+
             if (key == Key.V)
             {
                 ViewModel.PasteClipboardCommand.Execute(null);

@@ -20,6 +20,11 @@ public sealed partial class PageViewModel : ObservableObject
     private readonly SynchronizedCanvasElementList _synchronizedElements;
     private byte[]? _compressedIsfBytes;
 
+    internal IList<CanvasElement> SynchronizedElements => _synchronizedElements;
+
+    [ObservableProperty]
+    private StrokeCollection? _selectedStrokes;
+
     [ObservableProperty]
     private int _pageNumber;
 
@@ -337,6 +342,13 @@ public sealed partial class PageViewModel : ObservableObject
         {
             RemoveElement(el);
         }
+    }
+
+    public void ClearSelection()
+    {
+        SelectSingleElement(null);
+        SelectedStrokes?.Clear();
+        SelectedStrokes = null;
     }
 
     public void SelectSingleElement(CanvasElementViewModel? target)

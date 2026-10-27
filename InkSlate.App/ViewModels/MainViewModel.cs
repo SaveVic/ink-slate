@@ -2,11 +2,13 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkSlate.Core.Models;
+using InkSlate.Core.Models.CanvasElements;
 using InkSlate.Core.Services;
 using InkSlate.Core.UndoRedo;
 
@@ -490,6 +492,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnActivePageChanged(PageViewModel? oldValue, PageViewModel? newValue)
     {
+        _consecutivePasteCount = 0;
+
         if (oldValue is not null)
         {
             oldValue.IsActive = false;
@@ -971,11 +975,209 @@ public sealed partial class MainViewModel : ObservableObject
         AddIngestedMediaToActivePage(result);
     }
 
+    public const string InkSlateClipboardFormat = "InkSlate.CanvasClipboardPayload";
+
+    private CanvasClipboardPayload? _canvasClipboard;
+    private int _consecutivePasteCount;
+
+    [RelayCommand]
+    public void CopySelected()
+    {
+        if (ActivePage is null)
+        {
+            return;
+        }
+
+        var selectedElements = ActivePage.Elements
+            .Where(e => e.IsSelected && !e.IsEditing)
+            .Select(e => e.Model)
+            .ToList();
+
+        var selectedStrokes = ActivePage.SelectedStrokes;
+        var hasStrokes = selectedStrokes is not null && selectedStrokes.Count > 0;
+
+        if (selectedElements.Count == 0 && !hasStrokes)
+        {
+            return;
+        }
+
+        var payload = new CanvasClipboardPayload();
+
+        foreach (var el in selectedElements)
+        {
+            if (el is TextCanvasElement text)
+            {
+                payload.Elements.Add(new TextCanvasElement
+                {
+                    Id = text.Id,
+                    X = text.X,
+                    Y = text.Y,
+                    Width = text.Width,
+                    Height = text.Height,
+                    ZIndex = text.ZIndex,
+                    Text = text.Text,
+                    FontFamily = text.FontFamily,
+                    FontSize = text.FontSize,
+                    ForegroundHex = text.ForegroundHex,
+                    IsBold = text.IsBold,
+                    IsItalic = text.IsItalic
+                });
+            }
+            else if (el is ImageCanvasElement img)
+            {
+                payload.Elements.Add(new ImageCanvasElement
+                {
+                    Id = img.Id,
+                    X = img.X,
+                    Y = img.Y,
+                    Width = img.Width,
+                    Height = img.Height,
+                    ZIndex = img.ZIndex,
+                    AssetKey = img.AssetKey,
+                    CropX = img.CropX,
+                    CropY = img.CropY,
+                    CropWidth = img.CropWidth,
+                    CropHeight = img.CropHeight
+                });
+
+                if (Document.Assets.TryGetValue(img.AssetKey, out var bytes))
+                {
+                    payload.AssetBlobs[img.AssetKey] = bytes;
+                }
+            }
+        }
+
+        if (hasStrokes)
+        {
+            payload.StrokeBytes = CanvasClipboardPayload.SerializeStrokesToBytes(selectedStrokes!);
+        }
+
+        _canvasClipboard = payload;
+        _consecutivePasteCount = 0;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(payload);
+            var dataObj = new DataObject();
+            dataObj.SetData(InkSlateClipboardFormat, json);
+            Clipboard.SetDataObject(dataObj, false);
+        }
+        catch (Exception)
+        {
+            // System clipboard access may fail if locked by another app
+        }
+    }
+
     [RelayCommand]
     public void PasteClipboard()
     {
         if (ActivePage is null)
         {
+            return;
+        }
+
+        CanvasClipboardPayload? payload = null;
+
+        try
+        {
+            if (Clipboard.ContainsData(InkSlateClipboardFormat))
+            {
+                var json = Clipboard.GetData(InkSlateClipboardFormat) as string;
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    payload = JsonSerializer.Deserialize<CanvasClipboardPayload>(json);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Clipboard access may fail if locked by another application
+        }
+
+        if (payload is null && _canvasClipboard is not null && !_canvasClipboard.IsEmpty)
+        {
+            try
+            {
+                if (!Clipboard.ContainsImage() && !Clipboard.ContainsFileDropList())
+                {
+                    payload = _canvasClipboard;
+                }
+            }
+            catch (Exception)
+            {
+                payload = _canvasClipboard;
+            }
+        }
+
+        if (payload is not null && !payload.IsEmpty)
+        {
+            ActivePage.Hydrate();
+            if (ActivePage.Strokes is null)
+            {
+                ActivePage.Strokes = [];
+            }
+
+            _consecutivePasteCount++;
+            var offset = 20.0 * ((_consecutivePasteCount - 1) % 15 + 1);
+
+            var (clonedElements, clonedStrokes) = payload.CreateClonesWithOffset(offset, offset);
+
+            foreach (var (assetKey, assetBytes) in payload.AssetBlobs)
+            {
+                if (!Document.Assets.ContainsKey(assetKey))
+                {
+                    Document.Assets[assetKey] = assetBytes;
+                }
+                ActivePage.RegisterAsset(assetKey, assetBytes);
+            }
+
+            if (ActivePage.Elements.Count > 0)
+            {
+                var maxZ = ActivePage.Elements.Max(e => e.ZIndex);
+                for (var i = 0; i < clonedElements.Count; i++)
+                {
+                    clonedElements[i].ZIndex = maxZ + 1 + i;
+                }
+            }
+
+            var op = new PasteObjectsOperation(
+                ActivePage.Id,
+                ActivePage.SynchronizedElements,
+                clonedElements,
+                ActivePage.Strokes,
+                clonedStrokes);
+
+            if (ActivePage.UndoRedo is not null)
+            {
+                ActivePage.UndoRedo.ExecuteAndRecord(op);
+            }
+            else
+            {
+                op.Redo();
+            }
+
+            ActivePage.IsDirty = true;
+            IsDirty = true;
+
+            ActivePage.ClearSelection();
+            foreach (var el in clonedElements)
+            {
+                var vm = ActivePage.Elements.FirstOrDefault(e => ReferenceEquals(e.Model, el));
+                if (vm is not null)
+                {
+                    vm.IsSelected = true;
+                }
+            }
+
+            if (clonedStrokes.Count > 0)
+            {
+                ActivePage.SelectedStrokes = clonedStrokes;
+            }
+            else
+            {
+                ActivePage.SelectedStrokes = null;
+            }
+
             return;
         }
 

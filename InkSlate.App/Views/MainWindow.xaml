@@ -87,6 +87,7 @@
                         Effect="{StaticResource PageSheetShadow}">
                     <controls:PageCanvasControl PageId="{Binding Id}"
                                                 PageStrokes="{Binding Strokes, Mode=TwoWay}"
+                                                SelectedStrokes="{Binding SelectedStrokes, Mode=TwoWay}"
                                                 UndoRedoManager="{Binding UndoRedo}"
                                                 IsPageDirty="{Binding IsDirty, Mode=TwoWay}"
                                                 InkDrawingAttributes="{Binding Toolbar.CurrentDrawingAttributes}"
@@ -1712,6 +1713,17 @@
                                             <TextBlock Text="Ctrl + E" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" />
                                         </Border>
                                         <TextBlock Grid.Column="1" Text="Export Vector PDF" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                                    </Grid>
+
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,2">
+                                            <TextBlock Text="Ctrl + C / V" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Copy / Paste Object" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" />
                                     </Grid>
 
                                     <Grid Margin="0,3">

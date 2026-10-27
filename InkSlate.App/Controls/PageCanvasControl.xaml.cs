@@ -33,6 +33,16 @@ public partial class PageCanvasControl : UserControl
                 FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 OnPageStrokesPropertyChanged));
 
+    public static readonly DependencyProperty SelectedStrokesProperty =
+        DependencyProperty.Register(
+            nameof(SelectedStrokes),
+            typeof(StrokeCollection),
+            typeof(PageCanvasControl),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                OnSelectedStrokesPropertyChanged));
+
     public static readonly DependencyProperty UndoRedoManagerProperty =
         DependencyProperty.Register(
             nameof(UndoRedoManager),
@@ -214,6 +224,12 @@ public partial class PageCanvasControl : UserControl
     {
         get => (StrokeCollection?)GetValue(PageStrokesProperty);
         set => SetValue(PageStrokesProperty, value);
+    }
+
+    public StrokeCollection? SelectedStrokes
+    {
+        get => (StrokeCollection?)GetValue(SelectedStrokesProperty);
+        set => SetValue(SelectedStrokesProperty, value);
     }
 
     public UndoRedoManager? UndoRedoManager
@@ -426,6 +442,7 @@ public partial class PageCanvasControl : UserControl
                     if (DataContext is PageViewModel pageVm)
                     {
                         pageVm.SelectSingleElement(null);
+                        pageVm.SelectedStrokes = null;
                     }
                     else if (PageElements is not null)
                     {
@@ -434,6 +451,17 @@ public partial class PageCanvasControl : UserControl
                             el.IsSelected = false;
                             el.IsEditing = false;
                         }
+                    }
+
+                    _isSyncingSelection = true;
+                    try
+                    {
+                        SelectedStrokes = null;
+                        InternalInkCanvas.Select(null, null);
+                    }
+                    finally
+                    {
+                        _isSyncingSelection = false;
                     }
                 }
             }
@@ -600,6 +628,14 @@ public partial class PageCanvasControl : UserControl
         if (d is PageCanvasControl control)
         {
             control.SyncStrokesFromProperty(e.NewValue as StrokeCollection);
+        }
+    }
+
+    private static void OnSelectedStrokesPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PageCanvasControl control)
+        {
+            control.SyncInternalSelectionFromViewModel(e.NewValue as StrokeCollection);
         }
     }
 
@@ -935,6 +971,18 @@ public partial class PageCanvasControl : UserControl
         if (DataContext is PageViewModel pageVm)
         {
             pageVm.SelectSingleElement(element);
+            pageVm.SelectedStrokes = null;
+        }
+
+        _isSyncingSelection = true;
+        try
+        {
+            SelectedStrokes = null;
+            InternalInkCanvas.Select(null, null);
+        }
+        finally
+        {
+            _isSyncingSelection = false;
         }
     }
 
@@ -1052,6 +1100,39 @@ public partial class PageCanvasControl : UserControl
 
     private readonly Dictionary<CanvasElementContainer, Rect> _selectedElementInitialBounds = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Stroke, StylusPointCollection> _selectedStrokeInitialPoints = new(ReferenceEqualityComparer.Instance);
+    private bool _isSyncingSelection;
+
+    private void SyncInternalSelectionFromViewModel(StrokeCollection? newSelectedStrokes)
+    {
+        if (_isSyncingSelection)
+        {
+            return;
+        }
+
+        _isSyncingSelection = true;
+        try
+        {
+            var strokes = newSelectedStrokes ?? new StrokeCollection();
+            var elements = new List<UIElement>();
+            if (PageElements is not null)
+            {
+                foreach (var el in PageElements)
+                {
+                    if (el.IsSelected && _containers.TryGetValue(el, out var c))
+                    {
+                        elements.Add(c);
+                    }
+                }
+            }
+
+            InternalInkCanvas.Select(strokes, elements);
+            SnapshotSelectionState();
+        }
+        finally
+        {
+            _isSyncingSelection = false;
+        }
+    }
 
     private void OnInkCanvasSelectionChanging(object? sender, InkCanvasSelectionChangingEventArgs e)
     {
@@ -1079,6 +1160,24 @@ public partial class PageCanvasControl : UserControl
         {
             container.Element.IsSelected = selectedElements.Contains(container);
             container.RefreshAdornerAttachment();
+        }
+
+        if (!_isSyncingSelection)
+        {
+            _isSyncingSelection = true;
+            try
+            {
+                var strokes = InternalInkCanvas.GetSelectedStrokes();
+                SelectedStrokes = strokes;
+                if (DataContext is PageViewModel pageVm)
+                {
+                    pageVm.SelectedStrokes = strokes;
+                }
+            }
+            finally
+            {
+                _isSyncingSelection = false;
+            }
         }
     }
 

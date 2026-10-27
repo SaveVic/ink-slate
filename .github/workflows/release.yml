@@ -1,0 +1,110 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine Version
+        id: get_version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $ver = "${{ github.event.inputs.version }}".TrimStart('v')
+            $tag = "v$ver"
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $ver = $tag.TrimStart('v')
+          }
+          Write-Host "Releasing version: $ver with tag: $tag"
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag_name=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Run Test Suite
+        run: dotnet test --configuration Release /p:TreatWarningsAsErrors=true
+
+      - name: Publish win-x64 (Framework-Dependent)
+        run: |
+          dotnet publish InkSlate.App/InkSlate.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            -p:DebugType=embedded `
+            -p:Version=${{ steps.get_version.outputs.version }} `
+            -o ./dist/win-x64
+
+      - name: Publish win-x64 (Self-Contained Portable)
+        run: |
+          dotnet publish InkSlate.App/InkSlate.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=embedded `
+            -p:Version=${{ steps.get_version.outputs.version }} `
+            -o ./dist/win-x64-standalone
+
+      - name: Publish win-arm64 (Framework-Dependent)
+        run: |
+          dotnet publish InkSlate.App/InkSlate.App.csproj `
+            -c Release `
+            -r win-arm64 `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            -p:DebugType=embedded `
+            -p:Version=${{ steps.get_version.outputs.version }} `
+            -o ./dist/win-arm64
+
+      - name: Package Release Archives
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./artifacts
+          $ver = "${{ steps.get_version.outputs.version }}"
+
+          Compress-Archive -Path ./dist/win-x64/* -DestinationPath "./artifacts/InkSlate-v$ver-win-x64.zip" -Force
+          Compress-Archive -Path ./dist/win-x64-standalone/* -DestinationPath "./artifacts/InkSlate-v$ver-win-x64-standalone.zip" -Force
+          Compress-Archive -Path ./dist/win-arm64/* -DestinationPath "./artifacts/InkSlate-v$ver-win-arm64.zip" -Force
+
+          # Generate SHA256 Checksums
+          Get-FileHash -Algorithm SHA256 ./artifacts/*.zip | ForEach-Object {
+            "$($_.Hash)  $([System.IO.Path]::GetFileName($_.Path))"
+          } | Out-File -Encoding ascii ./artifacts/checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag_name }}
+          name: InkSlate ${{ steps.get_version.outputs.tag_name }}
+          files: |
+            ./artifacts/*.zip
+            ./artifacts/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+

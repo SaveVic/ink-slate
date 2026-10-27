@@ -4,7 +4,12 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>InkSlate.App</RootNamespace>
     <AssemblyName>InkSlate.App</AssemblyName>
+    <ApplicationIcon>Assets\inkslate.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\inkslate.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\InkSlate.Core\InkSlate.Core.csproj" />

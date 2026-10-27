@@ -16,6 +16,7 @@
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Round"
                  ExtendsContentIntoTitleBar="True"
+                 Icon="pack://application:,,,/InkSlate.App;component/Assets/inkslate.ico"
                  WindowStartupLocation="CenterScreen">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />

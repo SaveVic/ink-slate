@@ -84,8 +84,31 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsLassoOptionsOpen = false;
             Toolbar.IsTextOptionsOpen = false;
             IsPdfExportOpen = false;
+            IsHelpOpen = false;
         }
     }
+
+    [ObservableProperty]
+    private bool _isHelpOpen;
+
+    partial void OnIsHelpOpenChanged(bool value)
+    {
+        if (value)
+        {
+            Toolbar.IsPenOptionsOpen = false;
+            Toolbar.IsEraserOptionsOpen = false;
+            Toolbar.IsLassoOptionsOpen = false;
+            Toolbar.IsTextOptionsOpen = false;
+            IsPageSetupOpen = false;
+            IsPdfExportOpen = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleHelp() => IsHelpOpen = !IsHelpOpen;
+
+    [RelayCommand]
+    private void CloseHelp() => IsHelpOpen = false;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsA4Selected))]
@@ -252,6 +275,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsLassoOptionsOpen = false;
             Toolbar.IsTextOptionsOpen = false;
             IsPageSetupOpen = false;
+            IsHelpOpen = false;
         }
     }
 
@@ -295,6 +319,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 IsPageSetupOpen = false;
                 IsPdfExportOpen = false;
+                IsHelpOpen = false;
             }
 
             if (e.PropertyName is nameof(Toolbar.SelectedTextFontSize) or
@@ -1045,6 +1070,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         IsPageSetupOpen = false;
         IsPdfExportOpen = false;
+        IsHelpOpen = false;
         Toolbar.IsPenOptionsOpen = false;
         Toolbar.IsEraserOptionsOpen = false;
         Toolbar.IsLassoOptionsOpen = false;

@@ -25,7 +25,7 @@ public sealed class MainWindowShellTests
     }
 
     [Fact]
-    public void FloatingCommandBarHasAllSixteenIconButtonsWithTooltips()
+    public void FloatingCommandBarHasAllSeventeenIconButtonsWithTooltips()
     {
         RunInSta(() =>
         {
@@ -51,7 +51,8 @@ public sealed class MainWindowShellTests
                 ("AddPageButton", "Add Page (Ctrl+Enter)"),
                 ("PageSetupButton", "Page Setup"),
                 ("ToggleViewModeButton", "Toggle View: Consecutive / Separated (F5)"),
-                ("CyclePlacementButton", "Cycle Toolbar Position: Fixed Top / Left Sidebar / Floating")
+                ("CyclePlacementButton", "Cycle Toolbar Position: Fixed Top / Left Sidebar / Floating"),
+                ("HelpButton", "Help & Shortcuts (F1)")
             };
 
             foreach (var (name, expectedTooltip) in buttonNamesAndTooltips)

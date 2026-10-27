@@ -54,6 +54,16 @@ public partial class MainWindow : FluentWindow
                     return true;
                 }
             }
+            else if (key == Key.F1)
+            {
+                ViewModel.ToggleHelpCommand.Execute(null);
+                return true;
+            }
+            else if (key == Key.Escape && ViewModel.IsHelpOpen)
+            {
+                ViewModel.CloseHelpCommand.Execute(null);
+                return true;
+            }
             else if (key == Key.F2)
             {
                 if (!ViewModel.IsEditingTitle)
@@ -270,9 +280,34 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    private void TitleDisplayPill_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    public void HandleTitlePillClick(int clickCount)
     {
-        ViewModel.BeginEditTitleCommand.Execute(null);
+        if (clickCount >= 2 && !ViewModel.IsEditingTitle)
+        {
+            ViewModel.BeginEditTitleCommand.Execute(null);
+        }
+    }
+
+    private void TitleDisplayPill_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount >= 2)
+        {
+            HandleTitlePillClick(e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
+    private void HelpDialogBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, HelpDialogOverlay))
+        {
+            ViewModel.CloseHelpCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void HelpDialogCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
         e.Handled = true;
     }
 

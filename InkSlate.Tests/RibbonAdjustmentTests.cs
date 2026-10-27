@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
+using System.Windows.Media;
 using InkSlate.App.Controls;
 using InkSlate.App.ViewModels;
 using InkSlate.App.Views;
@@ -1120,6 +1121,89 @@ public sealed class RibbonAdjustmentTests
             Assert.Equal(2, mainVm.Pages.Count);
             Assert.Equal(1, mainVm.Pages[0].PageNumber);
             Assert.Equal(2, mainVm.Pages[1].PageNumber);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_TitlePill_SingleClickDoesNotEdit_DoubleClickEntersEditMode()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.False(mainVm.IsEditingTitle);
+
+            // Single click does not enter edit mode
+            window.HandleTitlePillClick(1);
+            Assert.False(mainVm.IsEditingTitle);
+
+            // Double click enters edit mode
+            window.HandleTitlePillClick(2);
+            Assert.True(mainVm.IsEditingTitle);
+            Assert.Equal("Untitled", mainVm.TitleDraft);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_DocumentTitleHeaderBar_IsRepositionedInWorkspace()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            var titleHeader = window.FindName("DocumentTitleHeaderBar") as Border;
+            Assert.NotNull(titleHeader);
+
+            // Verify it is inside the workspace grid, not the top TitleBar grid
+            var parent = VisualTreeHelper.GetParent(titleHeader) as FrameworkElement;
+            Assert.NotNull(parent);
+            Assert.IsType<Grid>(parent);
+
+            var titleContainer = window.FindName("TitleContainer") as Grid;
+            Assert.NotNull(titleContainer);
+            var titlePill = window.FindName("TitleDisplayPill") as Border;
+            Assert.NotNull(titlePill);
+            Assert.Equal("Double-click to edit document title (F2)", titlePill.ToolTip?.ToString());
+        });
+    }
+
+    [Fact]
+    public void MainWindow_HelpButtonAndF1_ToggleHelpDialogAndEnforceExclusivity()
+    {
+        RunInSta(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            Assert.False(mainVm.IsHelpOpen);
+
+            // F1 toggles help open
+            var handled = window.HandleNavigationKey(Key.F1, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.True(mainVm.IsHelpOpen);
+
+            // Popover exclusivity: opening help closes other popovers
+            mainVm.Toolbar.IsPenOptionsOpen = true;
+            Assert.False(mainVm.IsHelpOpen);
+            Assert.True(mainVm.Toolbar.IsPenOptionsOpen);
+
+            // Opening help again closes pen options
+            mainVm.ToggleHelpCommand.Execute(null);
+            Assert.True(mainVm.IsHelpOpen);
+            Assert.False(mainVm.Toolbar.IsPenOptionsOpen);
+
+            // Escape closes help
+            handled = window.HandleNavigationKey(Key.Escape, ModifierKeys.None);
+            Assert.True(handled);
+            Assert.False(mainVm.IsHelpOpen);
+
+            // HelpDialogOverlay and Close button exist in visual tree
+            var overlay = window.FindName("HelpDialogOverlay") as Grid;
+            Assert.NotNull(overlay);
+            var closeBtn = window.FindName("CloseHelpDialogButton") as Wpf.Ui.Controls.Button;
+            Assert.NotNull(closeBtn);
         });
     }
 }

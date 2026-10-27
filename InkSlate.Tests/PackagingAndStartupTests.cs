@@ -144,6 +144,9 @@ public sealed class PackagingAndStartupTests : IDisposable
     {
         StaTestRunner.Run(() =>
         {
+            // Warm up JIT and BAML parser static type tables before benchmarking window initialization
+            _ = new MainWindow(new MainViewModel());
+
             var sw = Stopwatch.StartNew();
 
             var mainVm = new MainViewModel();

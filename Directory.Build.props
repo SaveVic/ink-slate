@@ -18,7 +18,7 @@
     <Authors>InkSlate Contributors</Authors>
     <Copyright>Copyright © 2026 InkSlate Contributors</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/waffiq/ink-slate</RepositoryUrl>
+    <RepositoryUrl>https://github.com/SaveVic/ink-slate</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 </Project>

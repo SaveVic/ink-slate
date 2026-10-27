@@ -16,7 +16,7 @@ This document outlines the environment setup, architectural guidelines, testing 
 ### Cloning & Building
 ```powershell
 # Clone repository
-git clone https://github.com/waffiq/ink-slate.git
+git clone https://github.com/SaveVic/ink-slate.git
 cd ink-slate
 
 # Restore NuGet dependencies

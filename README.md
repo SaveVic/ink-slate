@@ -4,11 +4,11 @@
 
 **High-Performance, Keyboard-Driven Digital Ink Slate & Lecture Presentation Studio**
 
-[![Build & Test](https://github.com/waffiq/ink-slate/actions/workflows/ci.yml/badge.svg)](https://github.com/waffiq/ink-slate/actions/workflows/ci.yml)
+[![Build & Test](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml/badge.svg)](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml)
 [![Target Framework](https://img.shields.io/badge/.NET-10.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Tests Passing](https://img.shields.io/badge/Tests-271%20Passed-brightgreen)](https://github.com/waffiq/ink-slate)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20(x64%20%7C%20ARM64)-0078D6?logo=windows)](https://github.com/waffiq/ink-slate)
+[![Tests Passing](https://img.shields.io/badge/Tests-271%20Passed-brightgreen)](https://github.com/SaveVic/ink-slate)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20(x64%20%7C%20ARM64)-0078D6?logo=windows)](https://github.com/SaveVic/ink-slate)
 
 *Built from the ground up for educators, mathematicians, engineers, and presenters who require real-time stylus responsiveness, fluid keyboard ergonomics, and pristine vector exports.*
 
@@ -140,7 +140,7 @@ ink-slate/
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/waffiq/ink-slate.git
+git clone https://github.com/SaveVic/ink-slate.git
 cd ink-slate
 
 # 2. Restore NuGet dependencies

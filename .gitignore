@@ -57,3 +57,5 @@ TestResult.xml
 nunit-*.xml
 
 .tmp
+dist/
+installer/Output/

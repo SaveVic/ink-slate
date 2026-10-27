@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Ink;
+using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -54,6 +55,74 @@ public sealed partial class EraserSizeOption : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+}
+
+public sealed partial class CustomPenPresetViewModel : ObservableObject
+{
+    public CustomPenPresetViewModel(
+        Guid id,
+        string name,
+        string colorHex,
+        double thicknessDip,
+        string shortcut,
+        SolidColorBrush frozenBrush)
+    {
+        Id = id;
+        _name = name;
+        _colorHex = colorHex;
+        _thicknessDip = thicknessDip;
+        _shortcut = shortcut;
+        _frozenBrush = frozenBrush;
+        _dotDiameter = ComputeDotDiameter(thicknessDip);
+    }
+
+    public Guid Id { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TooltipText))]
+    private string _name;
+
+    [ObservableProperty]
+    private string _colorHex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TooltipText))]
+    private double _thicknessDip;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasShortcut))]
+    [NotifyPropertyChangedFor(nameof(TooltipText))]
+    private string _shortcut;
+
+    [ObservableProperty]
+    private SolidColorBrush _frozenBrush;
+
+    [ObservableProperty]
+    private double _dotDiameter;
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    public bool HasShortcut => !string.IsNullOrWhiteSpace(Shortcut);
+
+    public string TooltipText => HasShortcut
+        ? $"{Name} ({ThicknessDip:0.#}px) — Shortcut: {Shortcut}\nLeft-click to activate • Right-click to edit"
+        : $"{Name} ({ThicknessDip:0.#}px)\nLeft-click to activate • Right-click to edit";
+
+    public void UpdateFrom(string name, string colorHex, double thicknessDip, string shortcut, SolidColorBrush frozenBrush)
+    {
+        Name = name;
+        ColorHex = colorHex;
+        ThicknessDip = thicknessDip;
+        Shortcut = shortcut;
+        FrozenBrush = frozenBrush;
+        DotDiameter = ComputeDotDiameter(thicknessDip);
+    }
+
+    public static double ComputeDotDiameter(double thicknessDip)
+    {
+        return Math.Clamp(thicknessDip * 2.0 + 3.0, 6.0, 22.0);
+    }
 }
 
 public sealed partial class ToolbarViewModel : ObservableObject
@@ -178,6 +247,55 @@ public sealed partial class ToolbarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLassoOptionsOpen;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingExistingCustomPen))]
+    private Guid? _editingCustomPenId;
+
+    public bool IsEditingExistingCustomPen => EditingCustomPenId.HasValue;
+
+    [ObservableProperty]
+    private bool _isCustomPenEditorOpen;
+
+    partial void OnIsCustomPenEditorOpenChanged(bool value)
+    {
+        if (value)
+        {
+            IsPenOptionsOpen = false;
+            IsEraserOptionsOpen = false;
+            IsLassoOptionsOpen = false;
+            IsTextOptionsOpen = false;
+            IsCustomColorPickerOpen = false;
+        }
+        else
+        {
+            CustomPenEditorShortcutError = null;
+        }
+    }
+
+    [ObservableProperty]
+    private string _customPenEditorName = "Custom Pen";
+
+    [ObservableProperty]
+    private string _customPenEditorColorHex = DefaultPenColorHex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CustomPenEditorPreviewDiameter))]
+    private double _customPenEditorThickness = DefaultPenThickness;
+
+    [ObservableProperty]
+    private string _customPenEditorShortcut = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCustomPenEditorShortcutError))]
+    private string? _customPenEditorShortcutError;
+
+    public bool HasCustomPenEditorShortcutError => !string.IsNullOrWhiteSpace(CustomPenEditorShortcutError);
+
+    [ObservableProperty]
+    private SolidColorBrush _customPenEditorPreviewBrush = null!;
+
+    public double CustomPenEditorPreviewDiameter => Math.Clamp(CustomPenEditorThickness * 2.0 + 3.0, 6.0, 24.0);
+
     partial void OnIsPenOptionsOpenChanged(bool value)
     {
         if (value)
@@ -185,6 +303,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsEraserOptionsOpen = false;
             IsLassoOptionsOpen = false;
             IsTextOptionsOpen = false;
+            IsCustomPenEditorOpen = false;
         }
         else
         {
@@ -200,6 +319,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsLassoOptionsOpen = false;
             IsTextOptionsOpen = false;
             IsCustomColorPickerOpen = false;
+            IsCustomPenEditorOpen = false;
         }
     }
 
@@ -211,6 +331,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsEraserOptionsOpen = false;
             IsTextOptionsOpen = false;
             IsCustomColorPickerOpen = false;
+            IsCustomPenEditorOpen = false;
         }
     }
 
@@ -221,6 +342,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
             IsPenOptionsOpen = false;
             IsEraserOptionsOpen = false;
             IsLassoOptionsOpen = false;
+            IsCustomPenEditorOpen = false;
         }
         else
         {
@@ -264,6 +386,28 @@ public sealed partial class ToolbarViewModel : ObservableObject
             }
         }
 
+        CustomPenPresets = new ObservableCollection<CustomPenPresetViewModel>();
+        CustomPenPresets.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasCustomPenPresets));
+
+        if (_userSettings.CustomPenPresets is not null)
+        {
+            foreach (var preset in _userSettings.CustomPenPresets)
+            {
+                if (TryParseRgb(preset.ColorHex, out var pr, out var pg, out var pb))
+                {
+                    var brush = new SolidColorBrush(Color.FromRgb(pr, pg, pb));
+                    brush.Freeze();
+                    CustomPenPresets.Add(new CustomPenPresetViewModel(
+                        preset.Id,
+                        preset.Name,
+                        preset.ColorHex,
+                        preset.ThicknessDip,
+                        preset.Shortcut,
+                        brush));
+                }
+            }
+        }
+
         ThicknessOptions =
         [
             new ThicknessOption(1.5, 6.0),
@@ -283,11 +427,14 @@ public sealed partial class ToolbarViewModel : ObservableObject
         UpdateSubtoolSelectionStates();
 
         SetCustomColorRgb(0x25, 0x63, 0xEB);
+        UpdateCustomPenEditorPreviewBrush();
     }
 
     public DrawingAttributes CurrentDrawingAttributes { get; }
     public ObservableCollection<ColorSwatchOption> ColorSwatches { get; }
     public ObservableCollection<ColorSwatchOption> TextColorSwatches { get; }
+    public ObservableCollection<CustomPenPresetViewModel> CustomPenPresets { get; }
+    public bool HasCustomPenPresets => CustomPenPresets.Count > 0;
     public IReadOnlyList<ThicknessOption> ThicknessOptions { get; }
     public IReadOnlyList<EraserSizeOption> EraserSizeOptions { get; }
 
@@ -494,6 +641,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
         IsEraserOptionsOpen = false;
         IsLassoOptionsOpen = false;
         IsTextOptionsOpen = false;
+        IsCustomPenEditorOpen = false;
 
         if (ActiveTool != ToolMode.Eraser)
         {
@@ -519,6 +667,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
         IsEraserOptionsOpen = false;
         IsLassoOptionsOpen = false;
         IsTextOptionsOpen = false;
+        IsCustomPenEditorOpen = false;
 
         if (ActiveTool != ToolMode.Lasso)
         {
@@ -547,6 +696,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
                 IsEraserOptionsOpen = false;
                 IsLassoOptionsOpen = false;
                 IsTextOptionsOpen = false;
+                IsCustomPenEditorOpen = false;
                 IsPenOptionsOpen = !IsPenOptionsOpen;
                 return;
             }
@@ -556,6 +706,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
                 IsPenOptionsOpen = false;
                 IsLassoOptionsOpen = false;
                 IsTextOptionsOpen = false;
+                IsCustomPenEditorOpen = false;
                 IsEraserOptionsOpen = !IsEraserOptionsOpen;
                 return;
             }
@@ -565,6 +716,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
                 IsPenOptionsOpen = false;
                 IsEraserOptionsOpen = false;
                 IsTextOptionsOpen = false;
+                IsCustomPenEditorOpen = false;
                 IsLassoOptionsOpen = !IsLassoOptionsOpen;
                 return;
             }
@@ -574,6 +726,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
                 IsPenOptionsOpen = false;
                 IsEraserOptionsOpen = false;
                 IsLassoOptionsOpen = false;
+                IsCustomPenEditorOpen = false;
                 IsTextOptionsOpen = !IsTextOptionsOpen;
                 return;
             }
@@ -583,6 +736,7 @@ public sealed partial class ToolbarViewModel : ObservableObject
         IsEraserOptionsOpen = false;
         IsLassoOptionsOpen = false;
         IsTextOptionsOpen = false;
+        IsCustomPenEditorOpen = false;
         ActiveTool = mode;
         ApplyAttributesToSharedInstance();
         UpdateSubtoolSelectionStates();
@@ -645,6 +799,409 @@ public sealed partial class ToolbarViewModel : ObservableObject
         {
             eraser.IsSelected = SelectedEraserMode == EraserMode.Point && Math.Abs(eraser.SizeDip - SelectedEraserSize) < 0.05;
         }
+
+        if (CustomPenPresets is not null)
+        {
+            foreach (var preset in CustomPenPresets)
+            {
+                preset.IsSelected = ActiveTool == ToolMode.Pen &&
+                                    string.Equals(preset.ColorHex, SelectedPenColorHex, StringComparison.OrdinalIgnoreCase) &&
+                                    Math.Abs(preset.ThicknessDip - SelectedPenThickness) < 0.05;
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void OpenNewCustomPenEditor()
+    {
+        EditingCustomPenId = null;
+        CustomPenEditorName = SuggestNewCustomPenName();
+        CustomPenEditorColorHex = SelectedPenColorHex;
+        CustomPenEditorThickness = SelectedPenThickness;
+        CustomPenEditorShortcut = SuggestNextNumericShortcut();
+        CustomPenEditorShortcutError = null;
+        UpdateCustomPenEditorPreviewBrush();
+        IsCustomPenEditorOpen = true;
+    }
+
+    [RelayCommand]
+    public void OpenEditCustomPenEditor(CustomPenPresetViewModel? preset)
+    {
+        if (preset is null)
+        {
+            return;
+        }
+
+        EditingCustomPenId = preset.Id;
+        CustomPenEditorName = preset.Name;
+        CustomPenEditorColorHex = preset.ColorHex;
+        CustomPenEditorThickness = preset.ThicknessDip;
+        CustomPenEditorShortcut = preset.Shortcut;
+        CustomPenEditorShortcutError = null;
+        UpdateCustomPenEditorPreviewBrush();
+        IsCustomPenEditorOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseCustomPenEditor()
+    {
+        IsCustomPenEditorOpen = false;
+        CustomPenEditorShortcutError = null;
+    }
+
+    [RelayCommand]
+    public void ClearCustomPenEditorShortcut()
+    {
+        CustomPenEditorShortcut = string.Empty;
+        CustomPenEditorShortcutError = null;
+    }
+
+    [RelayCommand]
+    public void SelectCustomPenEditorColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return;
+        }
+
+        if (UserSettingsService.TryNormalizeColorHex(hex, out var normalized, out _, out _, out _))
+        {
+            CustomPenEditorColorHex = normalized;
+            UpdateCustomPenEditorPreviewBrush();
+        }
+    }
+
+    [RelayCommand]
+    public void SelectCustomPenEditorThickness(double thickness)
+    {
+        if (!double.IsFinite(thickness) || thickness <= 0.0)
+        {
+            return;
+        }
+
+        CustomPenEditorThickness = Math.Clamp(thickness, 0.5, 32.0);
+        OnPropertyChanged(nameof(CustomPenEditorPreviewDiameter));
+    }
+
+    [RelayCommand]
+    public void SaveCustomPenPreset()
+    {
+        var trimmedName = CustomPenEditorName?.Trim();
+        var finalName = string.IsNullOrWhiteSpace(trimmedName) ? "Custom Pen" : trimmedName;
+        if (finalName.Length > 64)
+        {
+            finalName = finalName[..64];
+        }
+
+        if (!UserSettingsService.TryNormalizeColorHex(CustomPenEditorColorHex, out var normalizedColor, out var r, out var g, out var b))
+        {
+            normalizedColor = DefaultPenColorHex;
+            r = 0x1E; g = 0x1E; b = 0x1E;
+        }
+
+        var clampedThickness = Math.Clamp(CustomPenEditorThickness, 0.5, 32.0);
+
+        if (!TryValidateCustomPenShortcut(CustomPenEditorShortcut, EditingCustomPenId, out var normalizedShortcut, out var shortcutError))
+        {
+            CustomPenEditorShortcutError = shortcutError;
+            return;
+        }
+
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+
+        CustomPenPresetViewModel? targetVm = null;
+        if (EditingCustomPenId.HasValue)
+        {
+            targetVm = CustomPenPresets.FirstOrDefault(p => p.Id == EditingCustomPenId.Value);
+        }
+
+        if (targetVm is not null)
+        {
+            targetVm.UpdateFrom(finalName, normalizedColor, clampedThickness, normalizedShortcut, brush);
+
+            var settingPreset = _userSettings.CustomPenPresets.FirstOrDefault(p => p.Id == targetVm.Id);
+            if (settingPreset is not null)
+            {
+                settingPreset.Name = finalName;
+                settingPreset.ColorHex = normalizedColor;
+                settingPreset.ThicknessDip = clampedThickness;
+                settingPreset.Shortcut = normalizedShortcut;
+            }
+            else
+            {
+                _userSettings.CustomPenPresets.Add(new CustomPenPreset
+                {
+                    Id = targetVm.Id,
+                    Name = finalName,
+                    ColorHex = normalizedColor,
+                    ThicknessDip = clampedThickness,
+                    Shortcut = normalizedShortcut
+                });
+            }
+        }
+        else
+        {
+            var newId = Guid.CreateVersion7();
+            targetVm = new CustomPenPresetViewModel(newId, finalName, normalizedColor, clampedThickness, normalizedShortcut, brush);
+            CustomPenPresets.Add(targetVm);
+
+            _userSettings.CustomPenPresets.Add(new CustomPenPreset
+            {
+                Id = newId,
+                Name = finalName,
+                ColorHex = normalizedColor,
+                ThicknessDip = clampedThickness,
+                Shortcut = normalizedShortcut
+            });
+        }
+
+        SaveUserSettings();
+        ActivateCustomPen(targetVm);
+        IsCustomPenEditorOpen = false;
+    }
+
+    [RelayCommand]
+    public void DeleteCustomPenPreset(object? parameter)
+    {
+        Guid? idToDelete = parameter as Guid? ??
+            (parameter as CustomPenPresetViewModel)?.Id ??
+            EditingCustomPenId;
+
+        if (!idToDelete.HasValue)
+        {
+            return;
+        }
+
+        var match = CustomPenPresets.FirstOrDefault(p => p.Id == idToDelete.Value);
+        if (match is not null)
+        {
+            CustomPenPresets.Remove(match);
+        }
+
+        var removed = _userSettings.CustomPenPresets.RemoveAll(p => p.Id == idToDelete.Value);
+        if (removed > 0)
+        {
+            SaveUserSettings();
+        }
+
+        IsCustomPenEditorOpen = false;
+        UpdateSubtoolSelectionStates();
+    }
+
+    [RelayCommand]
+    public void ActivateCustomPen(CustomPenPresetViewModel? preset)
+    {
+        if (preset is null)
+        {
+            return;
+        }
+
+        ActiveTool = ToolMode.Pen;
+        SelectedPenColorHex = preset.ColorHex;
+        SelectedPenThickness = preset.ThicknessDip;
+
+        IsPenOptionsOpen = false;
+        IsEraserOptionsOpen = false;
+        IsLassoOptionsOpen = false;
+        IsTextOptionsOpen = false;
+        IsCustomPenEditorOpen = false;
+
+        ApplyAttributesToSharedInstance();
+        UpdateSubtoolSelectionStates();
+    }
+
+    public bool TryActivateCustomPenByShortcut(Key key, ModifierKeys modifiers)
+    {
+        if (!TryFormatKey(key, modifiers, out var formatted))
+        {
+            return false;
+        }
+
+        var match = CustomPenPresets.FirstOrDefault(p =>
+            string.Equals(p.Shortcut, formatted, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            ActivateCustomPen(match);
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool TrySetCustomPenEditorShortcutFromKey(Key key, ModifierKeys modifiers)
+    {
+        if (TryFormatKey(key, modifiers, out var formatted))
+        {
+            if (TryValidateCustomPenShortcut(formatted, EditingCustomPenId, out var normalized, out var error))
+            {
+                CustomPenEditorShortcut = normalized;
+                CustomPenEditorShortcutError = null;
+                return true;
+            }
+            else
+            {
+                CustomPenEditorShortcut = formatted;
+                CustomPenEditorShortcutError = error;
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    public bool TryValidateCustomPenShortcut(string? raw, Guid? editingId, out string normalized, out string? error)
+    {
+        error = null;
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return true;
+        }
+
+        var trimmed = raw.Trim();
+        var parts = trimmed.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var hasCtrl = parts.Any(p => string.Equals(p, "ctrl", StringComparison.OrdinalIgnoreCase) || string.Equals(p, "control", StringComparison.OrdinalIgnoreCase));
+        var hasAlt = parts.Any(p => string.Equals(p, "alt", StringComparison.OrdinalIgnoreCase));
+        var hasShift = parts.Any(p => string.Equals(p, "shift", StringComparison.OrdinalIgnoreCase));
+        var keyName = parts.LastOrDefault(p => !string.Equals(p, "ctrl", StringComparison.OrdinalIgnoreCase) &&
+                                               !string.Equals(p, "control", StringComparison.OrdinalIgnoreCase) &&
+                                               !string.Equals(p, "alt", StringComparison.OrdinalIgnoreCase) &&
+                                               !string.Equals(p, "shift", StringComparison.OrdinalIgnoreCase));
+
+        if (string.IsNullOrWhiteSpace(keyName))
+        {
+            error = "Invalid shortcut format.";
+            return false;
+        }
+
+        keyName = keyName.ToUpperInvariant();
+        var sb = new System.Text.StringBuilder();
+        if (hasCtrl) sb.Append("Ctrl+");
+        if (hasAlt) sb.Append("Alt+");
+        if (hasShift) sb.Append("Shift+");
+        sb.Append(keyName);
+        normalized = sb.ToString();
+
+        if (!hasCtrl && !hasAlt && !hasShift)
+        {
+            string[] reservedSingleKeys = ["V", "P", "H", "E", "L", "T", "I", "F1", "F2", "F5", "F11", "DELETE", "BACK", "BACKSPACE", "SPACE", "ESCAPE", "ENTER", "RETURN", "PAGEUP", "PAGEDOWN", "LEFT", "RIGHT", "UP", "DOWN", "TAB"];
+            if (reservedSingleKeys.Contains(keyName, StringComparer.OrdinalIgnoreCase))
+            {
+                error = $"'{normalized}' is a reserved shortcut.";
+                return false;
+            }
+        }
+
+        if (hasCtrl && !hasAlt && !hasShift)
+        {
+            string[] reservedCtrlKeys = ["N", "O", "S", "E", "C", "V", "Z", "Y", "0", "ENTER", "RETURN"];
+            if (reservedCtrlKeys.Contains(keyName, StringComparer.OrdinalIgnoreCase))
+            {
+                error = $"'{normalized}' is a reserved shortcut.";
+                return false;
+            }
+        }
+
+        var candidate = normalized;
+        var conflict = CustomPenPresets.FirstOrDefault(p =>
+            (editingId == null || p.Id != editingId.Value) &&
+            string.Equals(p.Shortcut, candidate, StringComparison.OrdinalIgnoreCase));
+
+        if (conflict is not null)
+        {
+            error = $"Shortcut '{normalized}' is already used by '{conflict.Name}'.";
+            return false;
+        }
+
+        return true;
+    }
+
+    public static bool TryFormatKey(Key key, ModifierKeys modifiers, out string formatted)
+    {
+        formatted = string.Empty;
+
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
+            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.System)
+        {
+            return false;
+        }
+
+        string keyPart;
+        if (key >= Key.D0 && key <= Key.D9)
+        {
+            keyPart = ((int)(key - Key.D0)).ToString(CultureInfo.InvariantCulture);
+        }
+        else if (key >= Key.NumPad0 && key <= Key.NumPad9)
+        {
+            keyPart = ((int)(key - Key.NumPad0)).ToString(CultureInfo.InvariantCulture);
+        }
+        else if (key >= Key.A && key <= Key.Z)
+        {
+            keyPart = key.ToString().ToUpperInvariant();
+        }
+        else if (key >= Key.F1 && key <= Key.F24)
+        {
+            keyPart = key.ToString().ToUpperInvariant();
+        }
+        else
+        {
+            return false;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        if ((modifiers & ModifierKeys.Control) != 0) sb.Append("Ctrl+");
+        if ((modifiers & ModifierKeys.Alt) != 0) sb.Append("Alt+");
+        if ((modifiers & ModifierKeys.Shift) != 0) sb.Append("Shift+");
+        sb.Append(keyPart);
+
+        formatted = sb.ToString();
+        return true;
+    }
+
+    private void UpdateCustomPenEditorPreviewBrush()
+    {
+        if (TryParseRgb(CustomPenEditorColorHex, out var r, out var g, out var b))
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            CustomPenEditorPreviewBrush = brush;
+        }
+        else
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+            brush.Freeze();
+            CustomPenEditorPreviewBrush = brush;
+        }
+    }
+
+    private string SuggestNextNumericShortcut()
+    {
+        for (var i = 1; i <= 9; i++)
+        {
+            var digitStr = i.ToString(CultureInfo.InvariantCulture);
+            if (!CustomPenPresets.Any(p => string.Equals(p.Shortcut, digitStr, StringComparison.OrdinalIgnoreCase)))
+            {
+                return digitStr;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private string SuggestNewCustomPenName()
+    {
+        for (var i = 1; i <= 50; i++)
+        {
+            var name = $"Custom Pen {i}";
+            if (!CustomPenPresets.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return name;
+            }
+        }
+
+        return "Custom Pen";
     }
 
     [RelayCommand]

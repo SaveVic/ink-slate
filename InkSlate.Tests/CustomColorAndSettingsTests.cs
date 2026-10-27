@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.IO;
+using System.Windows.Input;
 using System.Windows.Media;
 using CsCheck;
 using InkSlate.App.ViewModels;
@@ -266,6 +268,275 @@ public sealed class CustomColorAndSettingsTests
             Assert.True(vm.Toolbar.IsCustomColorPickerOpen);
             vm.Toolbar.ToggleCustomColorPickerCommand.Execute(null);
             Assert.False(vm.Toolbar.IsCustomColorPickerOpen);
+        });
+    }
+
+    [Fact]
+    public void CustomPenPresets_InitiallyEmpty_RightDockCollapsedAndBecomesVisibleOnAdd()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var mainVm = new MainViewModel();
+            var window = new MainWindow(mainVm);
+
+            var rightDock = window.FindName("CustomPenRightDock") as System.Windows.Controls.Border;
+            var editorPopover = window.FindName("CustomPenEditorPopover") as System.Windows.Controls.Border;
+            var addPenOptionBtn = window.FindName("AddCustomPenFromOptionsButton") as Wpf.Ui.Controls.Button;
+            var addPenDockBtn = window.FindName("AddCustomPenDockButton") as Wpf.Ui.Controls.Button;
+
+            Assert.NotNull(rightDock);
+            Assert.NotNull(editorPopover);
+            Assert.NotNull(addPenOptionBtn);
+            Assert.NotNull(addPenDockBtn);
+
+            Assert.Empty(mainVm.Toolbar.CustomPenPresets);
+            Assert.False(mainVm.Toolbar.HasCustomPenPresets);
+
+            // Adding a preset sets HasCustomPenPresets to true
+            mainVm.Toolbar.OpenNewCustomPenEditorCommand.Execute(null);
+            Assert.True(mainVm.Toolbar.IsCustomPenEditorOpen);
+            mainVm.Toolbar.SaveCustomPenPresetCommand.Execute(null);
+
+            Assert.Single(mainVm.Toolbar.CustomPenPresets);
+            Assert.True(mainVm.Toolbar.HasCustomPenPresets);
+        });
+    }
+
+    [Fact]
+    public void CustomPenPresets_CreateEditDelete_AutoSavesToUserSettingsService()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "InkSlate_PresetSaveTest_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            var settingsPath = Path.Combine(tempDir, "user-settings.json");
+
+            try
+            {
+                var settingsService = new UserSettingsService(settingsPath);
+                var vm = new ToolbarViewModel(settingsService);
+
+                Assert.Empty(vm.CustomPenPresets);
+
+                // 1. Create preset
+                vm.OpenNewCustomPenEditorCommand.Execute(null);
+                Assert.True(vm.IsCustomPenEditorOpen);
+                vm.CustomPenEditorName = "Highlighter Green";
+                vm.CustomPenEditorColorHex = "#FF16A34A";
+                vm.CustomPenEditorThickness = 4.5;
+                vm.CustomPenEditorShortcut = "2";
+                vm.SaveCustomPenPresetCommand.Execute(null);
+
+                Assert.False(vm.IsCustomPenEditorOpen);
+                var preset = Assert.Single(vm.CustomPenPresets);
+                Assert.Equal("Highlighter Green", preset.Name);
+                Assert.Equal("#FF16A34A", preset.ColorHex);
+                Assert.Equal(4.5, preset.ThicknessDip);
+                Assert.Equal("2", preset.Shortcut);
+                Assert.True(preset.HasShortcut);
+
+                // Verify saved to disk
+                var diskSettings = settingsService.Load();
+                var diskPreset = Assert.Single(diskSettings.CustomPenPresets);
+                Assert.Equal("Highlighter Green", diskPreset.Name);
+                Assert.Equal("#FF16A34A", diskPreset.ColorHex);
+                Assert.Equal(4.5, diskPreset.ThicknessDip);
+                Assert.Equal("2", diskPreset.Shortcut);
+
+                // 2. Edit preset
+                vm.OpenEditCustomPenEditorCommand.Execute(preset);
+                Assert.True(vm.IsCustomPenEditorOpen);
+                Assert.True(vm.IsEditingExistingCustomPen);
+                vm.CustomPenEditorName = "Emerald Note Pen";
+                vm.CustomPenEditorThickness = 6.0;
+                vm.SaveCustomPenPresetCommand.Execute(null);
+
+                Assert.Equal("Emerald Note Pen", preset.Name);
+                Assert.Equal(6.0, preset.ThicknessDip);
+
+                var diskAfterEdit = settingsService.Load();
+                var editedDiskPreset = Assert.Single(diskAfterEdit.CustomPenPresets);
+                Assert.Equal("Emerald Note Pen", editedDiskPreset.Name);
+                Assert.Equal(6.0, editedDiskPreset.ThicknessDip);
+
+                // 3. Delete preset
+                vm.DeleteCustomPenPresetCommand.Execute(preset);
+                Assert.Empty(vm.CustomPenPresets);
+                Assert.False(vm.HasCustomPenPresets);
+
+                var diskAfterDelete = settingsService.Load();
+                Assert.Empty(diskAfterDelete.CustomPenPresets);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public void CustomPenPresets_ActivationByClickAndShortcut_AppliesExactPenAttributes()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new ToolbarViewModel();
+
+            // Preset 1: Red Thin
+            vm.OpenNewCustomPenEditorCommand.Execute(null);
+            vm.CustomPenEditorName = "Red Thin";
+            vm.CustomPenEditorColorHex = "#FFDC2626";
+            vm.CustomPenEditorThickness = 1.5;
+            vm.CustomPenEditorShortcut = "1";
+            vm.SaveCustomPenPresetCommand.Execute(null);
+
+            // Preset 2: Blue Thick
+            vm.OpenNewCustomPenEditorCommand.Execute(null);
+            vm.CustomPenEditorName = "Blue Thick";
+            vm.CustomPenEditorColorHex = "#FF2563EB";
+            vm.CustomPenEditorThickness = 8.0;
+            vm.CustomPenEditorShortcut = "Shift+B";
+            vm.SaveCustomPenPresetCommand.Execute(null);
+
+            Assert.Equal(2, vm.CustomPenPresets.Count);
+            var p1 = vm.CustomPenPresets[0];
+            var p2 = vm.CustomPenPresets[1];
+
+            // 1. Activate Preset 1 by click
+            vm.ActivateCustomPenCommand.Execute(p1);
+            Assert.Equal(ToolMode.Pen, vm.ActiveTool);
+            Assert.Equal("#FFDC2626", vm.SelectedPenColorHex);
+            Assert.Equal(1.5, vm.SelectedPenThickness);
+            Assert.Equal(1.5, vm.CurrentDrawingAttributes.Width);
+            Assert.True(p1.IsSelected);
+            Assert.False(p2.IsSelected);
+
+            // 2. Activate Preset 2 via custom shortcut Shift+B
+            var handledShiftB = vm.TryActivateCustomPenByShortcut(Key.B, ModifierKeys.Shift);
+            Assert.True(handledShiftB);
+            Assert.Equal(ToolMode.Pen, vm.ActiveTool);
+            Assert.Equal("#FF2563EB", vm.SelectedPenColorHex);
+            Assert.Equal(8.0, vm.SelectedPenThickness);
+            Assert.Equal(8.0, vm.CurrentDrawingAttributes.Width);
+            Assert.True(p2.IsSelected);
+            Assert.False(p1.IsSelected);
+
+            // 3. Activate Preset 1 via digit key D1 and NumPad1
+            var handledD1 = vm.TryActivateCustomPenByShortcut(Key.D1, ModifierKeys.None);
+            Assert.True(handledD1);
+            Assert.Equal("#FFDC2626", vm.SelectedPenColorHex);
+            Assert.Equal(1.5, vm.SelectedPenThickness);
+
+            var handledNum1 = vm.TryActivateCustomPenByShortcut(Key.NumPad1, ModifierKeys.None);
+            Assert.True(handledNum1);
+            Assert.Equal("#FFDC2626", vm.SelectedPenColorHex);
+
+            // Unmapped shortcut returns false
+            Assert.False(vm.TryActivateCustomPenByShortcut(Key.D9, ModifierKeys.None));
+        });
+    }
+
+    [Fact]
+    public void CustomPenPresets_ShortcutValidation_RejectsReservedAndDuplicateShortcuts()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new ToolbarViewModel();
+
+            // Preset with shortcut "1"
+            vm.OpenNewCustomPenEditorCommand.Execute(null);
+            vm.CustomPenEditorName = "First Pen";
+            vm.CustomPenEditorShortcut = "1";
+            vm.SaveCustomPenPresetCommand.Execute(null);
+
+            // Reserved single keys
+            string[] reservedSingle = ["P", "E", "V", "T", "H", "L", "I", "Space", "Delete", "Escape", "F1", "F2", "F5", "F11"];
+            foreach (var key in reservedSingle)
+            {
+                Assert.False(vm.TryValidateCustomPenShortcut(key, null, out _, out var err));
+                Assert.NotNull(err);
+            }
+
+            // Reserved Ctrl combinations
+            string[] reservedCtrl = ["Ctrl+S", "Ctrl+C", "Ctrl+V", "Ctrl+Z", "Ctrl+Y", "Ctrl+N", "Ctrl+O", "Ctrl+E", "Ctrl+0"];
+            foreach (var key in reservedCtrl)
+            {
+                Assert.False(vm.TryValidateCustomPenShortcut(key, null, out _, out var err));
+                Assert.NotNull(err);
+            }
+
+            // Duplicate shortcut "1"
+            Assert.False(vm.TryValidateCustomPenShortcut("1", null, out _, out var dupErr));
+            Assert.NotNull(dupErr);
+
+            // Validating itself when editing
+            var firstPreset = vm.CustomPenPresets[0];
+            Assert.True(vm.TryValidateCustomPenShortcut("1", firstPreset.Id, out var normSelf, out var errSelf));
+            Assert.Equal("1", normSelf);
+            Assert.Null(errSelf);
+
+            // Valid shortcuts
+            Assert.True(vm.TryValidateCustomPenShortcut("2", null, out var norm2, out _));
+            Assert.Equal("2", norm2);
+
+            Assert.True(vm.TryValidateCustomPenShortcut("Alt+1", null, out var normAlt, out _));
+            Assert.Equal("Alt+1", normAlt);
+
+            Assert.True(vm.TryValidateCustomPenShortcut("shift+r", null, out var normShift, out _));
+            Assert.Equal("Shift+R", normShift);
+
+            Assert.True(vm.TryValidateCustomPenShortcut("", null, out var normEmpty, out _));
+            Assert.Equal("", normEmpty);
+        });
+    }
+
+    [Fact]
+    public void CsCheck_CustomPenPresets_RoundTripAndActivationInvariants()
+    {
+        Gen.Select(
+            Gen.Byte.Array[3],
+            Gen.Double[0.5, 32.0],
+            Gen.Int[1, 9]
+        ).Sample((rgb, thickness, digit) =>
+        {
+            var hex = $"#FF{rgb[0]:X2}{rgb[1]:X2}{rgb[2]:X2}";
+            var shortcut = digit.ToString(CultureInfo.InvariantCulture);
+            var preset = new CustomPenPreset
+            {
+                Id = Guid.NewGuid(),
+                Name = $"Pen {digit}",
+                ColorHex = hex,
+                ThicknessDip = thickness,
+                Shortcut = shortcut
+            };
+
+            var settings = new UserSettings
+            {
+                CustomPenPresets = [preset]
+            };
+
+            UserSettingsService.Sanitize(settings);
+            var sanitizedPreset = Assert.Single(settings.CustomPenPresets);
+            Assert.Equal(hex, sanitizedPreset.ColorHex);
+            Assert.Equal(thickness, sanitizedPreset.ThicknessDip);
+            Assert.Equal(shortcut, sanitizedPreset.Shortcut);
+
+            StaTestRunner.Run(() =>
+            {
+                var vm = new ToolbarViewModel();
+                var brush = new SolidColorBrush(Color.FromRgb(rgb[0], rgb[1], rgb[2]));
+                brush.Freeze();
+                var pvm = new CustomPenPresetViewModel(preset.Id, preset.Name, preset.ColorHex, preset.ThicknessDip, preset.Shortcut, brush);
+                vm.CustomPenPresets.Add(pvm);
+
+                vm.ActivateCustomPenCommand.Execute(pvm);
+                Assert.Equal(ToolMode.Pen, vm.ActiveTool);
+                Assert.Equal(hex, vm.SelectedPenColorHex);
+                Assert.Equal(thickness, vm.CurrentDrawingAttributes.Width);
+                Assert.Equal(thickness, vm.CurrentDrawingAttributes.Height);
+            });
         });
     }
 }

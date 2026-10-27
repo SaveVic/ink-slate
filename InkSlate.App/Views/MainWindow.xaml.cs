@@ -64,6 +64,11 @@ public partial class MainWindow : FluentWindow
                 ViewModel.CloseHelpCommand.Execute(null);
                 return true;
             }
+            else if (key == Key.Escape && ViewModel.Toolbar.IsCustomPenEditorOpen)
+            {
+                ViewModel.Toolbar.CloseCustomPenEditorCommand.Execute(null);
+                return true;
+            }
             else if (key == Key.F2)
             {
                 if (!ViewModel.IsEditingTitle)
@@ -226,6 +231,11 @@ public partial class MainWindow : FluentWindow
             }
         }
 
+        if (ViewModel.Toolbar.TryActivateCustomPenByShortcut(key, modifiers))
+        {
+            return true;
+        }
+
         return false;
     }
 
@@ -239,14 +249,16 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if (e.Key == Key.Space && !e.IsRepeat)
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (key == Key.Space && !e.IsRepeat)
         {
             ViewportScrollViewer?.SetSpaceKeyDown(true);
             e.Handled = true;
             return;
         }
 
-        if (HandleNavigationKey(e.Key, Keyboard.Modifiers))
+        if (HandleNavigationKey(key, Keyboard.Modifiers))
         {
             e.Handled = true;
             return;
@@ -418,6 +430,54 @@ public partial class MainWindow : FluentWindow
         var saturation = Math.Clamp(position.X / width, 0.0, 1.0);
         var value = Math.Clamp(1.0 - (position.Y / height), 0.0, 1.0);
         ViewModel.Toolbar.SetCustomColorSaturationAndValue(saturation, value);
+    }
+
+    private void CustomPenPresetButton_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is CustomPenPresetViewModel preset)
+        {
+            ViewModel.Toolbar.OpenEditCustomPenEditorCommand.Execute(preset);
+            e.Handled = true;
+        }
+    }
+
+    private void CustomPenShortcutTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
+            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.System)
+        {
+            return;
+        }
+
+        if (key == Key.Tab)
+        {
+            return;
+        }
+
+        if (key == Key.Escape)
+        {
+            ViewModel.Toolbar.CloseCustomPenEditorCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (key == Key.Enter)
+        {
+            ViewModel.Toolbar.SaveCustomPenPresetCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if ((key is Key.Back or Key.Delete) && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            ViewModel.Toolbar.ClearCustomPenEditorShortcutCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        ViewModel.Toolbar.TrySetCustomPenEditorShortcutFromKey(key, Keyboard.Modifiers);
+        e.Handled = true;
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject

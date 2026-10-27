@@ -85,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
             Toolbar.IsTextOptionsOpen = false;
+            Toolbar.IsCustomPenEditorOpen = false;
             IsPdfExportOpen = false;
             IsHelpOpen = false;
         }
@@ -101,6 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
             Toolbar.IsTextOptionsOpen = false;
+            Toolbar.IsCustomPenEditorOpen = false;
             IsPageSetupOpen = false;
             IsPdfExportOpen = false;
         }
@@ -276,6 +278,7 @@ public sealed partial class MainViewModel : ObservableObject
             Toolbar.IsEraserOptionsOpen = false;
             Toolbar.IsLassoOptionsOpen = false;
             Toolbar.IsTextOptionsOpen = false;
+            Toolbar.IsCustomPenEditorOpen = false;
             IsPageSetupOpen = false;
             IsHelpOpen = false;
         }
@@ -317,7 +320,8 @@ public sealed partial class MainViewModel : ObservableObject
             if ((e.PropertyName == nameof(Toolbar.IsPenOptionsOpen) && Toolbar.IsPenOptionsOpen) ||
                 (e.PropertyName == nameof(Toolbar.IsEraserOptionsOpen) && Toolbar.IsEraserOptionsOpen) ||
                 (e.PropertyName == nameof(Toolbar.IsLassoOptionsOpen) && Toolbar.IsLassoOptionsOpen) ||
-                (e.PropertyName == nameof(Toolbar.IsTextOptionsOpen) && Toolbar.IsTextOptionsOpen))
+                (e.PropertyName == nameof(Toolbar.IsTextOptionsOpen) && Toolbar.IsTextOptionsOpen) ||
+                (e.PropertyName == nameof(Toolbar.IsCustomPenEditorOpen) && Toolbar.IsCustomPenEditorOpen))
             {
                 IsPageSetupOpen = false;
                 IsPdfExportOpen = false;

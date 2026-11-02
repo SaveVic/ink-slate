@@ -211,7 +211,13 @@ public sealed class PdfExportFlyoutTests : IDisposable
         doc.Pages.Add(new NotePage { PageNumber = 3, Width = 800, Height = 600 });
 
         var progressReports = new List<PdfExportProgress>();
-        var progress = new Progress<PdfExportProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<PdfExportProgress>(p =>
+        {
+            lock (progressReports)
+            {
+                progressReports.Add(p);
+            }
+        });
 
         using var ms = new MemoryStream();
         await PdfExportService.ExportAsync(doc, [0, 1, 2], ms, progress: progress);
@@ -268,7 +274,11 @@ public sealed class PdfExportFlyoutTests : IDisposable
         Assert.True(vm.IsExportCompleted);
 
         // Wait for dismiss delay to expire
-        await Task.Delay(180);
+        var deadline = DateTime.UtcNow.AddMilliseconds(1500);
+        while (vm.IsExportStatusVisible && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
 
         Assert.False(vm.IsExportStatusVisible);
     }
@@ -324,5 +334,10 @@ public sealed class PdfExportFlyoutTests : IDisposable
             var dismissBtn = window.FindName("DismissExportStatusButton") as Wpf.Ui.Controls.Button;
             Assert.NotNull(dismissBtn);
         });
+    }
+
+    private sealed class SynchronousProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 }

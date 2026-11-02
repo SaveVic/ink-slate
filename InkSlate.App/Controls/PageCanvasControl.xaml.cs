@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using InkSlate.App.ViewModels;
 using InkSlate.Core.Ink;
 using InkSlate.Core.Models;
@@ -108,16 +107,12 @@ public partial class PageCanvasControl : UserControl
             typeof(PageCanvasControl),
             new PropertyMetadata(LassoFilterMode.AllObjects));
 
-    private readonly Dictionary<CanvasElementViewModel, CanvasElementContainer> _containers = new(ReferenceEqualityComparer.Instance);
-    private INotifyCollectionChanged? _observedElements;
-
-    private bool _isSyncingStrokes;
-    private bool _isSplittingStroke;
-    private readonly HashSet<Stroke> _pendingOversizedStrokes = new(ReferenceEqualityComparer.Instance);
-    private StrokeCollection? _subscribedStrokes;
     private bool _areCanvasHandlersAttached;
+    private Point? _lastCanvasPointerPosition;
 
     public bool AreCanvasHandlersAttached => _areCanvasHandlersAttached;
+    public Point? LastCanvasPointerPosition => _lastCanvasPointerPosition;
+    public InkCanvas InkSurface => InternalInkCanvas;
 
     public PageCanvasControl()
     {
@@ -286,115 +281,12 @@ public partial class PageCanvasControl : UserControl
         set => SetValue(ActiveLassoFilterModeProperty, value);
     }
 
-    public InkCanvas InkSurface => InternalInkCanvas;
-
-    public Ellipse EraserCursor => EraserCursorIndicator;
-
-    public IReadOnlyCollection<CanvasElementContainer> ElementContainers => _containers.Values;
-
-    public CanvasElementContainer? GetContainer(CanvasElementViewModel vm) =>
-        _containers.TryGetValue(vm, out var container) ? container : null;
-
-    public void RefreshEraserShape()
-    {
-        var clampedSize = double.IsFinite(EraserSize) && EraserSize > 0.0
-            ? Math.Clamp(EraserSize, 2.0, 128.0)
-            : ToolbarViewModel.DefaultEraserSize;
-
-        InternalInkCanvas.EraserShape = new EllipseStylusShape(clampedSize, clampedSize);
-
-        if (InternalInkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint)
-        {
-            InternalInkCanvas.EditingMode = InkCanvasEditingMode.None;
-            InternalInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
-        }
-
-        if (EraserCursorIndicator is not null)
-        {
-            EraserCursorIndicator.Width = clampedSize;
-            EraserCursorIndicator.Height = clampedSize;
-        }
-    }
-
-    public void UpdateEraserCursor(Point point)
-    {
-        if (ActiveToolMode != ToolMode.Eraser || ActiveEraserMode != EraserMode.Point)
-        {
-            HideEraserCursor();
-            return;
-        }
-
-        var clampedSize = double.IsFinite(EraserSize) && EraserSize > 0.0
-            ? Math.Clamp(EraserSize, 2.0, 128.0)
-            : ToolbarViewModel.DefaultEraserSize;
-
-        if (EraserCursorIndicator is not null)
-        {
-            EraserCursorIndicator.Width = clampedSize;
-            EraserCursorIndicator.Height = clampedSize;
-            Canvas.SetLeft(EraserCursorIndicator, point.X - (clampedSize / 2.0));
-            Canvas.SetTop(EraserCursorIndicator, point.Y - (clampedSize / 2.0));
-            EraserCursorIndicator.Visibility = Visibility.Visible;
-        }
-    }
-
-    public void HideEraserCursor()
-    {
-        if (EraserCursorIndicator is not null)
-        {
-            EraserCursorIndicator.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    public int EraseElementsAtPoint(Point pagePoint)
-    {
-        if (PageElements is not { Count: > 0 })
-        {
-            return 0;
-        }
-
-        var hitElements = new List<CanvasElementViewModel>();
-        for (var i = PageElements.Count - 1; i >= 0; i--)
-        {
-            var element = PageElements[i];
-            if (element.HitTest(pagePoint))
-            {
-                hitElements.Add(element);
-            }
-        }
-
-        if (hitElements.Count == 0)
-        {
-            return 0;
-        }
-
-        var removedCount = 0;
-        foreach (var element in hitElements)
-        {
-            if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(element))
-            {
-                RemoveElementCommand.Execute(element);
-                removedCount++;
-            }
-            else
-            {
-                var originalIndex = PageElements.IndexOf(element);
-                if (originalIndex >= 0)
-                {
-                    PageElements.RemoveAt(originalIndex);
-                    IsPageDirty = true;
-                    removedCount++;
-                }
-            }
-        }
-
-        return removedCount;
-    }
-
     protected override void OnPreviewMouseMove(MouseEventArgs e)
     {
         base.OnPreviewMouseMove(e);
         var pos = e.GetPosition(this);
+        var canvasPos = e.GetPosition(InternalInkCanvas);
+        _lastCanvasPointerPosition = canvasPos;
 
         if (ActiveToolMode == ToolMode.Eraser)
         {
@@ -407,23 +299,30 @@ public partial class PageCanvasControl : UserControl
                 EraseElementsAtPoint(pos);
             }
         }
+        else if (ActiveToolMode == ToolMode.Pointer)
+        {
+            if (_isPointerDraggingObjects || _isPointerRectSelecting)
+            {
+                PointerLeftMove(canvasPos);
+                e.Handled = true;
+            }
+            else
+            {
+                UpdatePointerCursor(canvasPos);
+            }
+        }
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonDown(e);
+        var pos = e.GetPosition(this);
 
-        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+        if (ActiveToolMode == ToolMode.Text)
         {
-            var pos = e.GetPosition(this);
-            EraseElementsAtPoint(pos);
-        }
-        else if (ActiveToolMode == ToolMode.Text)
-        {
-            var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
-            if (hit is null)
+            var isInteractive = IsInsideElementOrAdorner(e.OriginalSource as DependencyObject);
+            if (!isInteractive)
             {
-                var pos = e.GetPosition(InternalInkCanvas);
                 if (DataContext is PageViewModel pageVm)
                 {
                     pageVm.AddTextElement(pos);
@@ -431,12 +330,25 @@ public partial class PageCanvasControl : UserControl
                 }
             }
         }
+        else if (ActiveToolMode == ToolMode.Pointer)
+        {
+            var dep = e.OriginalSource as DependencyObject;
+            if (FindAncestor<System.Windows.Controls.Primitives.Thumb>(dep) is not null ||
+                IsInsideInteractiveElementButtonOrTextBox(dep))
+            {
+                return;
+            }
+
+            var canvasPos = e.GetPosition(InternalInkCanvas);
+            PointerLeftDown(canvasPos);
+            e.Handled = true;
+        }
         else if (ActiveToolMode is not ToolMode.Pen and not ToolMode.Highlighter)
         {
             var isInteractive = IsInsideElementOrAdorner(e.OriginalSource as DependencyObject);
             if (!isInteractive)
             {
-                var hit = ElementContainers.FirstOrDefault(c => c.IsMouseOver);
+                var hit = HitTestTopmostElement(pos);
                 if (hit is null)
                 {
                     if (DataContext is PageViewModel pageVm)
@@ -468,19 +380,85 @@ public partial class PageCanvasControl : UserControl
         }
     }
 
-    private static bool IsInsideElementOrAdorner(DependencyObject? obj)
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
     {
-        while (obj is not null)
+        base.OnPreviewMouseLeftButtonUp(e);
+
+        if (ActiveToolMode == ToolMode.Pointer && (_isPointerDraggingObjects || _isPointerRectSelecting))
         {
-            if (obj is CanvasElementContainer or CanvasElementAdorner or System.Windows.Controls.Primitives.Thumb)
-            {
-                return true;
-            }
-
-            obj = VisualTreeHelper.GetParent(obj);
+            var canvasPos = e.GetPosition(InternalInkCanvas);
+            PointerLeftUp(canvasPos);
+            e.Handled = true;
         }
+    }
 
-        return false;
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+
+        if (ActiveToolMode == ToolMode.Pointer && (_isPointerDraggingObjects || _isPointerRectSelecting))
+        {
+            var canvasPos = e.GetPosition(InternalInkCanvas);
+            PointerLeftUp(canvasPos);
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _lastCanvasPointerPosition = null;
+        HideEraserCursor();
+        if (ActiveToolMode == ToolMode.Pointer && !_isPointerDraggingObjects && !_isPointerRectSelecting)
+        {
+            Cursor = null;
+        }
+    }
+
+    protected override void OnStylusDown(StylusDownEventArgs e)
+    {
+        base.OnStylusDown(e);
+        var pos = e.GetPosition(this);
+        _lastCanvasPointerPosition = e.GetPosition(InternalInkCanvas);
+        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+        {
+            EraseElementsAtPoint(pos);
+        }
+    }
+
+    protected override void OnStylusMove(StylusEventArgs e)
+    {
+        base.OnStylusMove(e);
+        var pos = e.GetPosition(this);
+        _lastCanvasPointerPosition = e.GetPosition(InternalInkCanvas);
+        if (ActiveToolMode == ToolMode.Eraser)
+        {
+            if (ActiveEraserMode == EraserMode.Point)
+            {
+                UpdateEraserCursor(pos);
+            }
+            else if (ActiveEraserMode == EraserMode.Object)
+            {
+                EraseElementsAtPoint(pos);
+            }
+        }
+    }
+
+    protected override void OnStylusUp(StylusEventArgs e)
+    {
+        base.OnStylusUp(e);
+        var pos = e.GetPosition(this);
+        _lastCanvasPointerPosition = e.GetPosition(InternalInkCanvas);
+        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+        {
+            EraseElementsAtPoint(pos);
+        }
+    }
+
+    protected override void OnStylusLeave(StylusEventArgs e)
+    {
+        base.OnStylusLeave(e);
+        _lastCanvasPointerPosition = null;
+        HideEraserCursor();
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
@@ -498,106 +476,11 @@ public partial class PageCanvasControl : UserControl
 
         if ((e.Key == Key.Delete || e.Key == Key.Back) && Keyboard.Modifiers == ModifierKeys.None)
         {
-            if (DeleteSelected())
+            if (DeleteSelection())
             {
                 e.Handled = true;
             }
         }
-    }
-
-    public bool DeleteSelected()
-    {
-        var deleted = false;
-        if (DataContext is PageViewModel pageVm)
-        {
-            var selected = pageVm.Elements.Where(e => e.IsSelected && !e.IsEditing).ToList();
-            if (selected.Count > 0)
-            {
-                foreach (var el in selected)
-                {
-                    pageVm.RemoveElement(el);
-                }
-                deleted = true;
-            }
-        }
-        else if (PageElements is not null)
-        {
-            var selected = PageElements.Where(e => e.IsSelected && !e.IsEditing).ToList();
-            if (selected.Count > 0)
-            {
-                foreach (var el in selected)
-                {
-                    if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(el))
-                    {
-                        RemoveElementCommand.Execute(el);
-                    }
-                    else
-                    {
-                        PageElements.Remove(el);
-                    }
-                }
-                deleted = true;
-            }
-        }
-
-        if (DeleteSelectedStrokes())
-        {
-            deleted = true;
-        }
-
-        return deleted;
-    }
-
-    public bool DeleteSelectedStrokes()
-    {
-        var strokes = InternalInkCanvas.GetSelectedStrokes();
-        if (strokes.Count > 0)
-        {
-            InternalInkCanvas.Strokes.Remove(strokes);
-            return true;
-        }
-        return false;
-    }
-
-    protected override void OnMouseLeave(MouseEventArgs e)
-    {
-        base.OnMouseLeave(e);
-        HideEraserCursor();
-    }
-
-    protected override void OnPreviewStylusMove(StylusEventArgs e)
-    {
-        base.OnPreviewStylusMove(e);
-        var pos = e.GetPosition(this);
-
-        if (ActiveToolMode == ToolMode.Eraser)
-        {
-            if (ActiveEraserMode == EraserMode.Point)
-            {
-                UpdateEraserCursor(pos);
-            }
-            else if (ActiveEraserMode == EraserMode.Object)
-            {
-                EraseElementsAtPoint(pos);
-            }
-        }
-    }
-
-    protected override void OnPreviewStylusDown(StylusDownEventArgs e)
-    {
-        base.OnPreviewStylusDown(e);
-
-        if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
-        {
-            var pos = e.GetPosition(this);
-            EraseElementsAtPoint(pos);
-        }
-    }
-
-    protected override void OnStylusLeave(StylusEventArgs e)
-    {
-        base.OnStylusLeave(e);
-        HideEraserCursor();
     }
 
     private static void OnPageIdPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -635,7 +518,7 @@ public partial class PageCanvasControl : UserControl
     {
         if (d is PageCanvasControl control)
         {
-            control.SyncInternalSelectionFromViewModel(e.NewValue as StrokeCollection);
+            control.SyncSelectionFromViewModel(e.NewValue as StrokeCollection);
         }
     }
 
@@ -715,242 +598,20 @@ public partial class PageCanvasControl : UserControl
             HideEraserCursor();
         }
 
+        if (ActiveToolMode != ToolMode.Pointer)
+        {
+            if (StrokeSelectionBorder is not null)
+            {
+                StrokeSelectionBorder.Visibility = Visibility.Collapsed;
+            }
+            Cursor = null;
+        }
+        else
+        {
+            UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
+        }
+
         UpdateElementInteractivity();
-    }
-
-    private void SyncElementsFromProperty(IList<CanvasElementViewModel>? newElements)
-    {
-        if (_observedElements is not null)
-        {
-            _observedElements.CollectionChanged -= OnElementsCollectionChanged;
-            _observedElements = null;
-        }
-
-        ClearElementContainers();
-
-        if (newElements is not null)
-        {
-            foreach (var element in newElements)
-            {
-                AddElementContainer(element);
-            }
-
-            if (_areCanvasHandlersAttached && newElements is INotifyCollectionChanged notify)
-            {
-                _observedElements = notify;
-                _observedElements.CollectionChanged += OnElementsCollectionChanged;
-            }
-        }
-    }
-
-    private void ClearElementContainers()
-    {
-        foreach (var container in _containers.Values)
-        {
-            container.Detach();
-            InternalInkCanvas.Children.Remove(container);
-        }
-        _containers.Clear();
-    }
-
-    private void AddElementContainer(CanvasElementViewModel element)
-    {
-        if (_containers.ContainsKey(element))
-        {
-            return;
-        }
-
-        var container = new CanvasElementContainer(element, UndoRedoManager, PageId)
-        {
-            IsHitTestVisible = ActiveToolMode is ToolMode.Pointer or ToolMode.Text or ToolMode.Image or ToolMode.Lasso
-        };
-        _containers[element] = container;
-        InternalInkCanvas.Children.Add(container);
-    }
-
-    private void RemoveElementContainer(CanvasElementViewModel element)
-    {
-        if (_containers.Remove(element, out var container))
-        {
-            container.Detach();
-            InternalInkCanvas.Children.Remove(container);
-        }
-    }
-
-    private void OnElementsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        switch (e.Action)
-        {
-            case NotifyCollectionChangedAction.Add:
-                if (e.NewItems is not null)
-                {
-                    foreach (CanvasElementViewModel item in e.NewItems)
-                    {
-                        AddElementContainer(item);
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Remove:
-                if (e.OldItems is not null)
-                {
-                    foreach (CanvasElementViewModel item in e.OldItems)
-                    {
-                        RemoveElementContainer(item);
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Replace:
-                if (e.OldItems is not null)
-                {
-                    foreach (CanvasElementViewModel item in e.OldItems)
-                    {
-                        RemoveElementContainer(item);
-                    }
-                }
-                if (e.NewItems is not null)
-                {
-                    foreach (CanvasElementViewModel item in e.NewItems)
-                    {
-                        AddElementContainer(item);
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Reset:
-                SyncElementsFromProperty(PageElements);
-                break;
-
-            case NotifyCollectionChangedAction.Move:
-                break;
-        }
-    }
-
-    private void UpdateElementInteractivity()
-    {
-        var interactive = ActiveToolMode is ToolMode.Pointer or ToolMode.Text or ToolMode.Image or ToolMode.Lasso;
-        foreach (var container in _containers.Values)
-        {
-            container.IsHitTestVisible = interactive;
-            container.RefreshAdornerAttachment();
-        }
-    }
-
-    private void SyncStrokesFromProperty(StrokeCollection? newStrokes)
-    {
-        DetachStrokesHandler();
-        _pendingOversizedStrokes.Clear();
-
-        _isSyncingStrokes = true;
-        try
-        {
-            var target = newStrokes ?? [];
-            if (!ReferenceEquals(InternalInkCanvas.Strokes, target))
-            {
-                InternalInkCanvas.Strokes = target;
-            }
-
-            if (_areCanvasHandlersAttached)
-            {
-                AttachStrokesHandler(target);
-            }
-        }
-        finally
-        {
-            _isSyncingStrokes = false;
-        }
-    }
-
-    private void AttachStrokesHandler(StrokeCollection strokes)
-    {
-        DetachStrokesHandler();
-        _subscribedStrokes = strokes;
-        _subscribedStrokes.StrokesChanged += OnInternalStrokesChanged;
-    }
-
-    private void DetachStrokesHandler()
-    {
-        if (_subscribedStrokes is not null)
-        {
-            _subscribedStrokes.StrokesChanged -= OnInternalStrokesChanged;
-            _subscribedStrokes = null;
-        }
-    }
-
-    private void OnInternalStrokesChanged(object? sender, StrokeCollectionChangedEventArgs e)
-    {
-        if (_isSyncingStrokes || _isSplittingStroke || (e.Added.Count == 0 && e.Removed.Count == 0))
-        {
-            return;
-        }
-
-        // Defer oversized freshly-inked strokes; StrokeCollected will split and record them atomically.
-        if (InternalInkCanvas.EditingMode == InkCanvasEditingMode.Ink &&
-            e.Removed.Count == 0 &&
-            e.Added.Count == 1 &&
-            StrokeSplitter.IsOversized(e.Added[0]))
-        {
-            _pendingOversizedStrokes.Add(e.Added[0]);
-            IsPageDirty = true;
-            return;
-        }
-
-        IsPageDirty = true;
-
-        var manager = UndoRedoManager;
-        if (manager is not null && !manager.IsReplaying)
-        {
-            var target = _subscribedStrokes ?? InternalInkCanvas.Strokes;
-            var op = new StrokesChangedOperation(PageId, target, e.Added, e.Removed);
-            manager.Record(op);
-        }
-    }
-
-    public int SplitCollectedStroke(Stroke stroke)
-    {
-        ArgumentNullException.ThrowIfNull(stroke);
-
-        var target = _subscribedStrokes ?? InternalInkCanvas.Strokes;
-        var wasPending = _pendingOversizedStrokes.Remove(stroke);
-
-        if (!StrokeSplitter.IsOversized(stroke) || !target.Contains(stroke))
-        {
-            return 0;
-        }
-
-        var chunks = StrokeSplitter.Split(stroke);
-        var added = new StrokeCollection(chunks);
-
-        _isSplittingStroke = true;
-        try
-        {
-            target.Replace(stroke, added);
-        }
-        finally
-        {
-            _isSplittingStroke = false;
-        }
-
-        IsPageDirty = true;
-
-        var manager = UndoRedoManager;
-        if (manager is not null && !manager.IsReplaying)
-        {
-            var removed = wasPending ? [] : new StrokeCollection([stroke]);
-            var op = new StrokesChangedOperation(PageId, target, added, removed);
-            manager.Record(op);
-        }
-
-        return chunks.Count;
-    }
-
-    private void OnStrokeCollected(object? sender, InkCanvasStrokeCollectedEventArgs e)
-    {
-        if (e.Stroke is not null)
-        {
-            SplitCollectedStroke(e.Stroke);
-        }
     }
 
     private void OnInlineTextBoxIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -1096,184 +757,5 @@ public partial class PageCanvasControl : UserControl
                 }
             }
         }
-    }
-
-    private readonly Dictionary<CanvasElementContainer, Rect> _selectedElementInitialBounds = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<Stroke, StylusPointCollection> _selectedStrokeInitialPoints = new(ReferenceEqualityComparer.Instance);
-    private bool _isSyncingSelection;
-
-    private void SyncInternalSelectionFromViewModel(StrokeCollection? newSelectedStrokes)
-    {
-        if (_isSyncingSelection)
-        {
-            return;
-        }
-
-        _isSyncingSelection = true;
-        try
-        {
-            var strokes = newSelectedStrokes ?? new StrokeCollection();
-            var elements = new List<UIElement>();
-            if (PageElements is not null)
-            {
-                foreach (var el in PageElements)
-                {
-                    if (el.IsSelected && _containers.TryGetValue(el, out var c))
-                    {
-                        elements.Add(c);
-                    }
-                }
-            }
-
-            InternalInkCanvas.Select(strokes, elements);
-            SnapshotSelectionState();
-        }
-        finally
-        {
-            _isSyncingSelection = false;
-        }
-    }
-
-    private void OnInkCanvasSelectionChanging(object? sender, InkCanvasSelectionChangingEventArgs e)
-    {
-        switch (ActiveLassoFilterMode)
-        {
-            case LassoFilterMode.StrokesOnly:
-                e.SetSelectedElements([]);
-                break;
-
-            case LassoFilterMode.ElementsOnly:
-                e.SetSelectedStrokes(new StrokeCollection());
-                break;
-
-            case LassoFilterMode.AllObjects:
-                break;
-        }
-    }
-
-    private void OnInkCanvasSelectionChanged(object? sender, EventArgs e)
-    {
-        SnapshotSelectionState();
-
-        var selectedElements = InternalInkCanvas.GetSelectedElements();
-        foreach (var container in _containers.Values)
-        {
-            container.Element.IsSelected = selectedElements.Contains(container);
-            container.RefreshAdornerAttachment();
-        }
-
-        if (!_isSyncingSelection)
-        {
-            _isSyncingSelection = true;
-            try
-            {
-                var strokes = InternalInkCanvas.GetSelectedStrokes();
-                SelectedStrokes = strokes;
-                if (DataContext is PageViewModel pageVm)
-                {
-                    pageVm.SelectedStrokes = strokes;
-                }
-            }
-            finally
-            {
-                _isSyncingSelection = false;
-            }
-        }
-    }
-
-    private void SnapshotSelectionState()
-    {
-        _selectedElementInitialBounds.Clear();
-        foreach (var el in InternalInkCanvas.GetSelectedElements())
-        {
-            if (el is CanvasElementContainer container)
-            {
-                _selectedElementInitialBounds[container] = new Rect(
-                    container.Element.X,
-                    container.Element.Y,
-                    container.Element.Width,
-                    container.Element.Height);
-            }
-        }
-
-        _selectedStrokeInitialPoints.Clear();
-        foreach (var stroke in InternalInkCanvas.GetSelectedStrokes())
-        {
-            _selectedStrokeInitialPoints[stroke] = stroke.StylusPoints.Clone();
-        }
-    }
-
-    private void OnInkCanvasSelectionMoved(object? sender, EventArgs e) => HandleSelectionTransformed();
-    private void OnInkCanvasSelectionResized(object? sender, EventArgs e) => HandleSelectionTransformed();
-
-    private void HandleSelectionTransformed()
-    {
-        var selectedElements = InternalInkCanvas.GetSelectedElements();
-        var selectedStrokes = InternalInkCanvas.GetSelectedStrokes();
-
-        var elementChanges = new List<ElementTransformChange>();
-        var strokeChanges = new List<StrokeTransformChange>();
-
-        foreach (var el in selectedElements)
-        {
-            if (el is CanvasElementContainer container)
-            {
-                var newX = InkCanvas.GetLeft(container);
-                var newY = InkCanvas.GetTop(container);
-                var newW = container.Width;
-                var newH = container.Height;
-                var newBounds = new Rect(newX, newY, newW, newH);
-
-                if (_selectedElementInitialBounds.TryGetValue(container, out var oldBounds))
-                {
-                    if (newBounds != oldBounds)
-                    {
-                        elementChanges.Add(new ElementTransformChange(container.Element.Model, oldBounds, newBounds));
-                        container.Element.X = newX;
-                        container.Element.Y = newY;
-                        container.Element.Width = newW;
-                        container.Element.Height = newH;
-                    }
-                }
-            }
-        }
-
-        foreach (var stroke in selectedStrokes)
-        {
-            if (_selectedStrokeInitialPoints.TryGetValue(stroke, out var oldPoints))
-            {
-                var newPoints = stroke.StylusPoints.Clone();
-                if (!AreStylusPointsEqual(oldPoints, newPoints))
-                {
-                    strokeChanges.Add(new StrokeTransformChange(stroke, oldPoints, newPoints));
-                }
-            }
-        }
-
-        if (elementChanges.Count > 0 || strokeChanges.Count > 0)
-        {
-            IsPageDirty = true;
-            if (UndoRedoManager is not null && !UndoRedoManager.IsReplaying)
-            {
-                UndoRedoManager.Record(new ElementTransformedOperation(PageId, elementChanges, strokeChanges));
-            }
-
-            SnapshotSelectionState();
-        }
-    }
-
-    private static bool AreStylusPointsEqual(StylusPointCollection a, StylusPointCollection b)
-    {
-        if (a.Count != b.Count) return false;
-        for (var i = 0; i < a.Count; i++)
-        {
-            var pa = a[i];
-            var pb = b[i];
-            if (Math.Abs(pa.X - pb.X) > 0.001 || Math.Abs(pa.Y - pb.Y) > 0.001)
-            {
-                return false;
-            }
-        }
-        return true;
     }
 }

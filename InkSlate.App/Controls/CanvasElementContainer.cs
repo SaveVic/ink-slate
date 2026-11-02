@@ -161,22 +161,38 @@ public sealed class CanvasElementContainer : ContentControl
         }
     }
 
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonDown(e);
+
+        if (e.ClickCount == 2 && Element is TextCanvasElementViewModel textVm)
+        {
+            textVm.IsEditing = true;
+            e.Handled = true;
+        }
+    }
+
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
 
-        if (e.OriginalSource is DependencyObject dep && (FindAncestor<Button>(dep) is not null || dep is TextBox || dep is Wpf.Ui.Controls.TextBox))
+        if (e.OriginalSource is DependencyObject dep &&
+            (FindAncestor<System.Windows.Controls.Primitives.Thumb>(dep) is not null ||
+             FindAncestor<Button>(dep) is not null ||
+             dep is TextBox ||
+             dep is Wpf.Ui.Controls.TextBox))
         {
             return;
         }
 
-        if (FindPageCanvasControl()?.ActiveToolMode == ToolMode.Lasso)
+        var pcc = FindPageCanvasControl();
+        if (pcc?.ActiveToolMode is ToolMode.Lasso or ToolMode.Pointer)
         {
+            // Lasso and Pointer modes are orchestrated globally by PageCanvasControl
             return;
         }
 
-        var pageCanvas = FindPageCanvasControl();
-        pageCanvas?.SelectExclusive(Element);
+        pcc?.SelectExclusive(Element);
         Element.IsSelected = true;
 
         if (e.ClickCount == 2 && Element is TextCanvasElementViewModel textVm)

@@ -449,7 +449,11 @@ public sealed class Phase07WorkflowAndCustomizationTests : IDisposable
         Assert.True(File.Exists(targetPath));
 
         // After the configured dismiss delay, pill auto-hides
-        await Task.Delay(180);
+        var deadline = DateTime.UtcNow.AddMilliseconds(1500);
+        while (vm.IsExportStatusVisible && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
         Assert.False(vm.IsExportStatusVisible);
     }
 }

@@ -8,6 +8,7 @@ using InkSlate.App.ViewModels;
 using InkSlate.App.Views;
 using InkSlate.Core.Models;
 using InkSlate.Core.Models.CanvasElements;
+using InkSlate.Core.UndoRedo;
 using Xunit;
 
 namespace InkSlate.Tests;
@@ -156,17 +157,12 @@ public sealed class RibbonAdjustmentTests
     }
 
     [Fact]
-    public void ZoomScrollViewer_PointerMode_PansOnEmptySpaceAndClearsSelection()
+    public void ZoomScrollViewer_PointerMode_RightClickPans_AndLeftClickDoesNotPan()
     {
         RunInSta(() =>
         {
             var mainVm = new MainViewModel();
             Assert.NotNull(mainVm.ActivePage);
-
-            var textModel = new TextCanvasElement { X = 50, Y = 50, Width = 100, Height = 40 };
-            var textElem = new TextCanvasElementViewModel(textModel) { IsSelected = true };
-            mainVm.ActivePage.Elements.Add(textElem);
-            Assert.True(textElem.IsSelected);
 
             var viewer = new ZoomScrollViewer
             {
@@ -174,11 +170,24 @@ public sealed class RibbonAdjustmentTests
                 ActiveToolMode = ToolMode.Pointer
             };
 
-            // Call BeginPan directly simulating empty space click
+            // 1. Right click should trigger pan
+            Assert.True(viewer.ShouldStartPan(MouseButton.Right, MouseButtonState.Pressed, null));
+
+            // 2. Left click without space in pointer mode should NOT pan
+            Assert.False(viewer.ShouldStartPan(MouseButton.Left, MouseButtonState.Pressed, null));
+
+            // 3. Middle click should pan
+            Assert.True(viewer.ShouldStartPan(MouseButton.Middle, MouseButtonState.Pressed, null));
+
+            // 4. Space + Left click should pan
+            viewer.SetSpaceKeyDown(true);
+            Assert.True(viewer.ShouldStartPan(MouseButton.Left, MouseButtonState.Pressed, null));
+            viewer.SetSpaceKeyDown(false);
+
+            // 5. Verify direct Pan lifecycle
             viewer.BeginPan(new Point(100, 100));
             Assert.True(viewer.IsPanning);
 
-            // Update pan
             viewer.UpdatePan(new Point(80, 70));
             Assert.Equal(20.0, viewer.TargetHorizontalOffset);
             Assert.Equal(30.0, viewer.TargetVerticalOffset);
@@ -1206,5 +1215,367 @@ public sealed class RibbonAdjustmentTests
             Assert.NotNull(closeBtn);
         });
     }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_LeftClickSelectsSingleElementOrSingleStrokeExclusively()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var undoRedo = new UndoRedoManager();
+            var pageVm = new PageViewModel(page, undoRedo);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                UndoRedoManager = undoRedo,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            // Add an element at (50, 50, 100, 60)
+            var textModel = new TextCanvasElement { X = 50, Y = 50, Width = 100, Height = 60, Text = "Target" };
+            var textVm = new TextCanvasElementViewModel(textModel);
+            pageVm.Elements.Add(textVm);
+            control.PageElements = pageVm.Elements;
+
+            // Add a stroke passing through (200, 200) -> (250, 250)
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(200, 200),
+                new StylusPoint(250, 250)
+            });
+            control.InkSurface.Strokes.Add(stroke);
+
+            // 1. Click on the text element -> selects only element
+            control.PointerLeftDown(new Point(60, 60));
+            control.PointerLeftUp(new Point(60, 60));
+
+            Assert.True(textVm.IsSelected);
+            Assert.Empty(control.InkSurface.GetSelectedStrokes());
+
+            // 2. Click on the stroke -> selects only stroke, deselects element
+            control.PointerLeftDown(new Point(200, 200));
+            control.PointerLeftUp(new Point(200, 200));
+
+            Assert.False(textVm.IsSelected);
+            var selectedStrokes = control.InkSurface.GetSelectedStrokes();
+            Assert.Single(selectedStrokes);
+            Assert.Same(stroke, selectedStrokes[0]);
+
+            // 3. Click on empty space -> clears both
+            control.PointerLeftDown(new Point(10, 10));
+            control.PointerLeftUp(new Point(10, 10));
+
+            Assert.False(textVm.IsSelected);
+            Assert.Empty(control.InkSurface.GetSelectedStrokes());
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_DragSingleStrokeOrElement_MovesObjectWithUndoRedo()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var undoRedo = new UndoRedoManager();
+            var pageVm = new PageViewModel(page, undoRedo);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                UndoRedoManager = undoRedo,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            // 1. Test dragging text element
+            var textModel = new TextCanvasElement { X = 40, Y = 40, Width = 80, Height = 40, Text = "Move Me" };
+            var textVm = new TextCanvasElementViewModel(textModel);
+            pageVm.Elements.Add(textVm);
+            control.PageElements = pageVm.Elements;
+
+            control.PointerLeftDown(new Point(50, 50));
+            control.PointerLeftMove(new Point(80, 90)); // delta +30, +40
+            control.PointerLeftUp(new Point(80, 90));
+
+            Assert.Equal(70.0, textVm.X);
+            Assert.Equal(80.0, textVm.Y);
+            Assert.Equal(1, undoRedo.UndoCount);
+
+            // Undo element move
+            undoRedo.Undo();
+            Assert.Equal(40.0, textVm.X);
+            Assert.Equal(40.0, textVm.Y);
+
+            // 2. Test dragging single stroke
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100, 100),
+                new StylusPoint(120, 120)
+            });
+            control.InkSurface.Strokes.Add(stroke);
+
+            control.PointerLeftDown(new Point(100, 100));
+            control.PointerLeftMove(new Point(150, 140)); // delta +50, +40
+            control.PointerLeftUp(new Point(150, 140));
+
+            Assert.Equal(150.0, stroke.StylusPoints[0].X);
+            Assert.Equal(140.0, stroke.StylusPoints[0].Y);
+            Assert.Equal(170.0, stroke.StylusPoints[1].X);
+            Assert.Equal(160.0, stroke.StylusPoints[1].Y);
+
+            // Undo stroke move
+            undoRedo.Undo();
+            Assert.Equal(100.0, stroke.StylusPoints[0].X);
+            Assert.Equal(100.0, stroke.StylusPoints[0].Y);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_DragEmptySpace_PerformsRectangleAreaSelection()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var pageVm = new PageViewModel(page);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            // Element 1 inside rectangle (X: 100, Y: 100)
+            var textInside = new TextCanvasElementViewModel(new TextCanvasElement { X = 100, Y = 100, Width = 50, Height = 30, Text = "Inside" });
+            // Element 2 outside rectangle (X: 400, Y: 400)
+            var textOutside = new TextCanvasElementViewModel(new TextCanvasElement { X = 400, Y = 400, Width = 50, Height = 30, Text = "Outside" });
+            pageVm.Elements.Add(textInside);
+            pageVm.Elements.Add(textOutside);
+            control.PageElements = pageVm.Elements;
+
+            // Stroke inside rectangle (120, 120) -> (150, 150)
+            var strokeInside = new Stroke(new StylusPointCollection { new StylusPoint(120, 120), new StylusPoint(150, 150) });
+            // Stroke outside rectangle (420, 420) -> (450, 450)
+            var strokeOutside = new Stroke(new StylusPointCollection { new StylusPoint(420, 420), new StylusPoint(450, 450) });
+            control.InkSurface.Strokes.Add(strokeInside);
+            control.InkSurface.Strokes.Add(strokeOutside);
+
+            // Drag rectangle marquee from (50, 50) to (200, 200)
+            control.PointerLeftDown(new Point(50, 50));
+            control.PointerLeftMove(new Point(200, 200));
+            control.PointerLeftUp(new Point(200, 200));
+
+            // Inside objects should be selected
+            Assert.True(textInside.IsSelected);
+            Assert.False(textOutside.IsSelected);
+
+            var selectedStrokes = control.InkSurface.GetSelectedStrokes();
+            Assert.Contains(strokeInside, selectedStrokes);
+            Assert.DoesNotContain(strokeOutside, selectedStrokes);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_Cursor_IsSizeAllInsideSelectionBox_AndArrowOutside()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var pageVm = new PageViewModel(page);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100, 100),
+                new StylusPoint(200, 200)
+            });
+            control.InkSurface.Strokes.Add(stroke);
+
+            // Select stroke
+            control.PointerLeftDown(new Point(100, 100));
+            control.PointerLeftUp(new Point(100, 100));
+
+            // Inside selection bounding box (e.g. 150, 150)
+            Assert.True(control.IsPointInsideSelectionBox(new Point(150, 150)));
+            control.UpdatePointerCursor(new Point(150, 150));
+            Assert.Equal(Cursors.SizeAll, control.Cursor);
+
+            // Outside selection bounding box (e.g. 20, 20)
+            Assert.False(control.IsPointInsideSelectionBox(new Point(20, 20)));
+            control.UpdatePointerCursor(new Point(20, 20));
+            Assert.Equal(Cursors.Arrow, control.Cursor);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_DraggingInsideSelectionBox_MovesSelectedStroke()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var undoRedo = new UndoRedoManager();
+            var pageVm = new PageViewModel(page, undoRedo);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                UndoRedoManager = undoRedo,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            // Diagonal stroke from (100, 100) to (200, 200)
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100, 100),
+                new StylusPoint(200, 200)
+            });
+            control.InkSurface.Strokes.Add(stroke);
+
+            // 1. Select the stroke by clicking on it
+            control.PointerLeftDown(new Point(100, 100));
+            control.PointerLeftUp(new Point(100, 100));
+            Assert.Single(control.InkSurface.GetSelectedStrokes());
+
+            // 2. Point (110, 190) is inside stroke's bounding box [100..200, 100..200]
+            // but not on the diagonal stroke line itself
+            Assert.True(control.IsPointInsideSelectionBox(new Point(110, 190)));
+            Assert.Null(control.HitTestTopmostStroke(new Point(110, 190)));
+
+            // 3. Drag from (110, 190) to (130, 210) -> delta +20, +20
+            control.PointerLeftDown(new Point(110, 190));
+            control.PointerLeftMove(new Point(130, 210));
+            control.PointerLeftUp(new Point(130, 210));
+
+            // Verify stroke points moved by delta (+20, +20)
+            Assert.Equal(120.0, stroke.StylusPoints[0].X);
+            Assert.Equal(120.0, stroke.StylusPoints[0].Y);
+            Assert.Equal(220.0, stroke.StylusPoints[1].X);
+            Assert.Equal(220.0, stroke.StylusPoints[1].Y);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PointerMode_DeleteSelectedObject_RemovesSelectionBorder()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var pageVm = new PageViewModel(page);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100, 100),
+                new StylusPoint(150, 150)
+            });
+            control.InkSurface.Strokes.Add(stroke);
+
+            // Select stroke
+            control.PointerLeftDown(new Point(100, 100));
+            control.PointerLeftUp(new Point(100, 100));
+
+            Assert.Equal(Visibility.Visible, control.StrokeSelectionBorder.Visibility);
+
+            // Delete selected stroke
+            var deleted = control.DeleteSelected();
+            Assert.True(deleted);
+
+            Assert.Empty(control.InkSurface.Strokes);
+            Assert.Empty(control.InkSurface.GetSelectedStrokes());
+            Assert.Equal(Visibility.Collapsed, control.StrokeSelectionBorder.Visibility);
+            Assert.Equal(Cursors.Arrow, control.Cursor);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_SelectedImageElement_HasActiveAdornerWithInteractiveResizeThumbs()
+    {
+        RunInSta(() =>
+        {
+            var page = new NotePage();
+            var undoRedo = new UndoRedoManager();
+            var pageVm = new PageViewModel(page, undoRedo);
+
+            var control = new PageCanvasControl
+            {
+                DataContext = pageVm,
+                UndoRedoManager = undoRedo,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            var imageModel = new ImageCanvasElement
+            {
+                AssetKey = "sample_img",
+                X = 100,
+                Y = 100,
+                Width = 200,
+                Height = 100
+            };
+            var imgVm = new ImageCanvasElementViewModel(imageModel)
+            {
+                IsSelected = true
+            };
+            pageVm.Elements.Add(imgVm);
+            control.PageElements = pageVm.Elements;
+
+            // Container exists
+            var container = Assert.Single(control.ElementContainers);
+            var adorner = new CanvasElementAdorner(container, imgVm, undoRedo, page.Id);
+
+            var getVisualChildMethod = adorner.GetType().GetMethod("GetVisualChild", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(getVisualChildMethod);
+
+            var bottomRightThumb = Assert.IsType<System.Windows.Controls.Primitives.Thumb>(getVisualChildMethod.Invoke(adorner, [2]));
+
+            // Test that clicking on the Thumb in Pointer mode is NOT intercepted by PageCanvasControl
+            var mouseArgs = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+            {
+                RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent,
+                Source = bottomRightThumb
+            };
+            control.RaiseEvent(mouseArgs);
+
+            // PreviewMouseLeftButtonDown should NOT be handled so the thumb receives the event
+            Assert.False(mouseArgs.Handled);
+
+            // Drag the bottom-right corner thumb by (+60, +30)
+            bottomRightThumb.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0)
+            {
+                RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent
+            });
+            bottomRightThumb.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(60, 30)
+            {
+                RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent
+            });
+            bottomRightThumb.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(60, 30, false)
+            {
+                RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent
+            });
+
+            // Resized proportionally: width 200 -> 260, height 100 -> 130
+            Assert.Equal(260.0, imgVm.Width, 2);
+            Assert.Equal(130.0, imgVm.Height, 2);
+
+            // Undo restores original size
+            undoRedo.Undo();
+            Assert.Equal(200.0, imgVm.Width, 2);
+            Assert.Equal(100.0, imgVm.Height, 2);
+
+            // Redo restores resized dimensions
+            undoRedo.Redo();
+            Assert.Equal(260.0, imgVm.Width, 2);
+            Assert.Equal(130.0, imgVm.Height, 2);
+        });
+    }
 }
+
 

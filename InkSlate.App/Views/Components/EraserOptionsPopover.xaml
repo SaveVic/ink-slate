@@ -1,0 +1,116 @@
+<UserControl x:Class="InkSlate.App.Views.Components.EraserOptionsPopover"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core"
+             xmlns:vm="clr-namespace:InkSlate.App.ViewModels">
+    <Border x:Name="EraserOptionsBorder"
+            Padding="10,6"
+            Visibility="{Binding Toolbar.IsEraserOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                        <Setter Property="HorizontalAlignment" Value="Left" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                        <Setter Property="Margin" Value="48,210,0,0" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+            <!-- 3-Mode Segmented Eraser Buttons -->
+            <ui:Button x:Name="StrokeEraserModeButton"
+                       Command="{Binding Toolbar.SelectEraserModeCommand}"
+                       CommandParameter="{x:Static models:EraserMode.Stroke}"
+                       ToolTip="Stroke Eraser">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsStrokeEraserMode}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="Eraser24" FontSize="18" />
+            </ui:Button>
+
+            <ui:Button x:Name="PointEraserModeButton"
+                       Command="{Binding Toolbar.SelectEraserModeCommand}"
+                       CommandParameter="{x:Static models:EraserMode.Point}"
+                       ToolTip="Point Eraser">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsPointEraserMode}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="CircleSmall24" FontSize="18" />
+            </ui:Button>
+
+            <ui:Button x:Name="ObjectEraserModeButton"
+                       Command="{Binding Toolbar.SelectEraserModeCommand}"
+                       CommandParameter="{x:Static models:EraserMode.Object}"
+                       ToolTip="Object Eraser">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsObjectEraserMode}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="Shapes24" FontSize="18" />
+            </ui:Button>
+
+            <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+            <!-- 3 Eraser Size Dots (Zero text labels) -->
+            <ItemsControl x:Name="EraserSizeDotsItemsControl"
+                          ItemsSource="{Binding Toolbar.EraserSizeOptions}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Style="{StaticResource SubtoolStackPanelStyle}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:EraserSizeOption}">
+                        <Button Width="26"
+                                Height="26"
+                                Margin="2"
+                                Padding="0"
+                                Cursor="Hand"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Command="{Binding DataContext.Toolbar.SelectEraserSizeCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"
+                                CommandParameter="{Binding SizeDip}">
+                            <Grid>
+                                <Border x:Name="SelectionRing"
+                                        Width="24"
+                                        Height="24"
+                                        CornerRadius="12"
+                                        BorderThickness="2"
+                                        BorderBrush="Transparent" />
+                                <Ellipse x:Name="Dot"
+                                         Width="{Binding DotDiameter}"
+                                         Height="{Binding DotDiameter}"
+                                         Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Grid>
+                        </Button>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

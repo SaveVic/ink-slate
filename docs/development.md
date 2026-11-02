@@ -36,16 +36,18 @@ dotnet run --project InkSlate.App/InkSlate.App.csproj --configuration Release
 ```
 InkSlate.sln
 ├── InkSlate.Core/               # net10.0-windows class library (SkiaSharp)
-│   ├── Models/                  # NoteDocument, NotePage, CanvasElement hierarchy
+│   ├── Models/                  # NoteDocument, NotePage, CanvasElement hierarchy, CanvasClipboardPayload
 │   ├── Serialization/           # JsonContext, DocumentValidator
 │   ├── Services/                # FilePackageService, PdfExportService, CrashRecoveryService
 │   └── UndoRedo/                # UndoRedoManager, atomic operations
 ├── InkSlate.App/                # net10.0-windows WPF application (WPF-UI, MVVM Toolkit)
 │   ├── Assets/                  # App icon (inkslate.ico), frozen graphic resources
-│   ├── Controls/                # PageCanvasControl, ZoomScrollViewer, ElementContainer
+│   ├── Controls/                # Modular PageCanvasControl (*.Pointer, *.Eraser, *.Elements, *.Strokes)
 │   ├── Converters/              # Value converters (HexToFrozenBrushConverter)
+│   ├── Themes/                  # SharedStyles.xaml resource dictionary
 │   ├── ViewModels/              # MainViewModel, PageViewModel, ToolbarViewModel
-│   └── Views/                   # MainWindow.xaml Fluent shell
+│   └── Views/                   # MainWindow.xaml Fluent shell, MainWindow.Navigation.cs
+│       └── Components/          # Modular UserControls (Popovers, Overlays, and Status HUD)
 └── InkSlate.Tests/              # net10.0-windows xUnit & CsCheck test suite
 ```
 
@@ -59,12 +61,19 @@ All projects enforce `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. All 
 ### 2. Nullable Reference Types & Flow Analysis
 Nullable annotations are enabled across all projects (`<Nullable>enable</Nullable>`). Avoid null-forgiving operators (`!`) unless operating on validated properties that the compiler's flow analysis cannot infer.
 
-### 3. WPF Resource Freezing
+### 3. File Modularity & Component Decomposition
+Maintain clean separation of concerns and avoid monolithic files:
+- Complex UI overlays, dialogs, and popovers belong in dedicated `UserControl`s inside `Views/Components/`.
+- Shared styles and converters reside in `Themes/SharedStyles.xaml`.
+- Deeply stateful controls like `PageCanvasControl` organize distinct concerns into cohesive partial classes (`*.Pointer.cs`, `*.Eraser.cs`, `*.Elements.cs`, `*.Strokes.cs`).
+- Top-level keyboard routing and shortcuts are isolated in `MainWindow.Navigation.cs`.
+
+### 4. WPF Resource Freezing
 Any `SolidColorBrush`, `Pen`, or `Effect` created dynamically or defined in XAML must be frozen:
 - In C#: `brush.Freeze();` or static readonly frozen instances.
 - In XAML: `po:Freeze="True"` using `xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"`.
 
-### 4. Virtualization Lifecycle Invariants
+### 5. Virtualization Lifecycle Invariants
 Never attach event handlers in `UserControl` constructors without detaching them in `Unloaded`. Virtualized containers reuse controls; detached visual controls will leak if events remain hooked to view models.
 
 ---

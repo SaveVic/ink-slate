@@ -1,0 +1,71 @@
+<UserControl x:Class="InkSlate.App.Views.Components.LassoFilterPopover"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core">
+    <Border x:Name="LassoOptionsPopover"
+            Padding="6,4"
+            Visibility="{Binding Toolbar.IsLassoOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                        <Setter Property="HorizontalAlignment" Value="Left" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                        <Setter Property="Margin" Value="48,245,0,0" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+            <ui:Button x:Name="LassoStrokesOnlyButton"
+                       Command="{Binding Toolbar.SelectLassoFilterCommand}"
+                       CommandParameter="{x:Static models:LassoFilterMode.StrokesOnly}"
+                       ToolTip="Strokes Only">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsLassoStrokesOnly}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="Pen24" FontSize="18" />
+            </ui:Button>
+
+            <ui:Button x:Name="LassoElementsOnlyButton"
+                       Command="{Binding Toolbar.SelectLassoFilterCommand}"
+                       CommandParameter="{x:Static models:LassoFilterMode.ElementsOnly}"
+                       ToolTip="Elements Only">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsLassoElementsOnly}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="Shapes24" FontSize="18" />
+            </ui:Button>
+
+            <ui:Button x:Name="LassoAllObjectsButton"
+                       Command="{Binding Toolbar.SelectLassoFilterCommand}"
+                       CommandParameter="{x:Static models:LassoFilterMode.AllObjects}"
+                       ToolTip="All Objects">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource ToolbarIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Toolbar.IsLassoAllObjects}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:SymbolIcon Symbol="SlideMultiple24" FontSize="18" />
+            </ui:Button>
+        </StackPanel>
+    </Border>
+</UserControl>
+

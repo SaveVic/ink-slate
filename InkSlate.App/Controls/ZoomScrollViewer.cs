@@ -266,26 +266,37 @@ public sealed class ZoomScrollViewer : ScrollViewer
         e.Handled = true;
     }
 
+    public bool ShouldStartPan(MouseButton changedButton, MouseButtonState buttonState, DependencyObject? originalSource)
+    {
+        if (buttonState != MouseButtonState.Pressed)
+        {
+            return false;
+        }
+
+        if (changedButton == MouseButton.Middle)
+        {
+            return true;
+        }
+
+        if (changedButton == MouseButton.Right && ActiveToolMode == ToolMode.Pointer)
+        {
+            return !IsInsideInteractiveScrollBarOrButton(originalSource);
+        }
+
+        if (changedButton == MouseButton.Left)
+        {
+            return _isSpaceKeyDown || ActiveToolMode == ToolMode.Pan;
+        }
+
+        return false;
+    }
+
     protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
 
-        var isMiddlePan = e.ChangedButton == MouseButton.Middle && e.MiddleButton == MouseButtonState.Pressed;
-        var isPointerPan = ActiveToolMode == ToolMode.Pointer &&
-                           e.ChangedButton == MouseButton.Left &&
-                           e.LeftButton == MouseButtonState.Pressed &&
-                           !IsInsideInteractiveElement(e.OriginalSource as DependencyObject);
-        var isLeftPan = e.ChangedButton == MouseButton.Left &&
-                        e.LeftButton == MouseButtonState.Pressed &&
-                        (_isSpaceKeyDown || ActiveToolMode == ToolMode.Pan || isPointerPan);
-
-        if (isMiddlePan || isLeftPan)
+        if (ShouldStartPan(e.ChangedButton, e.ButtonState, e.OriginalSource as DependencyObject))
         {
-            if (ActiveToolMode == ToolMode.Pointer)
-            {
-                DeselectActiveElements();
-            }
-
             BeginPan(e.GetPosition(this));
             CaptureMouse();
             e.Handled = true;
@@ -295,15 +306,10 @@ public sealed class ZoomScrollViewer : ScrollViewer
         base.OnPreviewMouseDown(e);
     }
 
-    private static bool IsInsideInteractiveElement(DependencyObject? obj)
+    private static bool IsInsideInteractiveScrollBarOrButton(DependencyObject? obj)
     {
         while (obj != null)
         {
-            if (obj is CanvasElementContainer or CanvasElementAdorner)
-            {
-                return true;
-            }
-
             if (obj is Button or TextBox or System.Windows.Controls.Primitives.ScrollBar or System.Windows.Controls.Primitives.Thumb or Slider)
             {
                 return true;
@@ -333,7 +339,9 @@ public sealed class ZoomScrollViewer : ScrollViewer
 
         if (_isPanning)
         {
-            if (e.MiddleButton != MouseButtonState.Pressed && e.LeftButton != MouseButtonState.Pressed)
+            if (e.MiddleButton != MouseButtonState.Pressed &&
+                e.LeftButton != MouseButtonState.Pressed &&
+                e.RightButton != MouseButtonState.Pressed)
             {
                 EndPan();
             }
@@ -352,7 +360,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
     {
         ArgumentNullException.ThrowIfNull(e);
 
-        if (_isPanning && (e.ChangedButton == MouseButton.Middle || e.ChangedButton == MouseButton.Left))
+        if (_isPanning && (e.ChangedButton == MouseButton.Middle || e.ChangedButton == MouseButton.Left || e.ChangedButton == MouseButton.Right))
         {
             EndPan();
             e.Handled = true;

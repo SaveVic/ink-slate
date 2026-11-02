@@ -1,0 +1,125 @@
+<UserControl x:Class="InkSlate.App.Views.Components.PageSetupPopover"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:models="clr-namespace:InkSlate.Core.Models;assembly=InkSlate.Core">
+    <Border x:Name="PageSetupBorder"
+            Padding="10,8"
+            Visibility="{Binding IsPageSetupOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource PopoverContainerStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Toolbar.Placement}" Value="{x:Static models:ToolbarPlacement.LeftDocked}">
+                        <Setter Property="HorizontalAlignment" Value="Left" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                        <Setter Property="Margin" Value="48,340,0,0" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <StackPanel Style="{StaticResource SubtoolStackPanelStyle}">
+            <!-- Presets -->
+            <ui:Button Content="A4"
+                       Command="{Binding SelectPresetCommand}"
+                       CommandParameter="{x:Static models:PageDimensionPreset.A4}">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsA4Selected}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+            </ui:Button>
+            <ui:Button Content="Letter"
+                       Command="{Binding SelectPresetCommand}"
+                       CommandParameter="{x:Static models:PageDimensionPreset.Letter}">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLetterSelected}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+            </ui:Button>
+            <ui:Button Content="Legal"
+                       Command="{Binding SelectPresetCommand}"
+                       CommandParameter="{x:Static models:PageDimensionPreset.Legal}">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLegalSelected}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+            </ui:Button>
+            <ui:Button Content="16:9"
+                       Command="{Binding SelectPresetCommand}"
+                       CommandParameter="{x:Static models:PageDimensionPreset.Slide16x9}">
+                <ui:Button.Style>
+                    <Style TargetType="ui:Button" BasedOn="{StaticResource PresetPillButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSlide16x9Selected}" Value="True">
+                                <Setter Property="Appearance" Value="Primary" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+            </ui:Button>
+
+            <Border Style="{StaticResource SubtoolSeparatorStyle}" />
+
+            <!-- Dimensions Input: Width x Height -->
+            <TextBox x:Name="CustomWidthTextBox"
+                     Width="64"
+                     Height="28"
+                     Padding="4,2"
+                     VerticalContentAlignment="Center"
+                     HorizontalContentAlignment="Center"
+                     FontSize="12"
+                     Text="{Binding CustomWidthInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Margin="4,0"
+                       VerticalAlignment="Center"
+                       Text="×"
+                       FontSize="12" />
+
+            <TextBox x:Name="CustomHeightTextBox"
+                     Width="64"
+                     Height="28"
+                     Padding="4,2"
+                     VerticalContentAlignment="Center"
+                     HorizontalContentAlignment="Center"
+                     FontSize="12"
+                     Text="{Binding CustomHeightInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+            <!-- Unit Toggle (px / mm) -->
+            <ui:Button x:Name="UnitToggleButton"
+                       Height="28"
+                       Margin="6,0,0,0"
+                       Padding="6,2"
+                       FontSize="12"
+                       Appearance="Transparent"
+                       Content="{Binding DimensionUnitLabel}"
+                       Command="{Binding ToggleDimensionUnitCommand}"
+                       ToolTip="Toggle px / mm" />
+
+            <!-- Apply Checkmark Button -->
+            <ui:Button x:Name="ApplyDimensionsButton"
+                       Width="30"
+                       Height="28"
+                       Margin="4,0,0,0"
+                       Padding="0"
+                       Appearance="Primary"
+                       Command="{Binding ApplyPageDimensionsCommand}"
+                       ToolTip="Apply Dimensions">
+                <ui:SymbolIcon Symbol="Checkmark24" FontSize="16" />
+            </ui:Button>
+        </StackPanel>
+    </Border>
+</UserControl>

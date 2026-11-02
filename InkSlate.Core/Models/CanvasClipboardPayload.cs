@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json.Serialization;
+using System.Windows;
 using System.Windows.Ink;
 using System.Windows.Media;
 using InkSlate.Core.Models.CanvasElements;
@@ -58,6 +59,58 @@ public sealed class CanvasClipboardPayload
         }
 
         return (clonedElements, clonedStrokes);
+    }
+
+    public Rect GetBounds()
+    {
+        var minX = double.PositiveInfinity;
+        var minY = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var maxY = double.NegativeInfinity;
+
+        foreach (var el in Elements)
+        {
+            minX = Math.Min(minX, el.X);
+            minY = Math.Min(minY, el.Y);
+            maxX = Math.Max(maxX, el.X + Math.Max(0.0, el.Width));
+            maxY = Math.Max(maxY, el.Y + Math.Max(0.0, el.Height));
+        }
+
+        var strokes = DeserializeStrokesFromBytes(StrokeBytes);
+        if (strokes.Count > 0)
+        {
+            var bounds = strokes.GetBounds();
+            if (!bounds.IsEmpty)
+            {
+                minX = Math.Min(minX, bounds.Left);
+                minY = Math.Min(minY, bounds.Top);
+                maxX = Math.Max(maxX, bounds.Right);
+                maxY = Math.Max(maxY, bounds.Bottom);
+            }
+        }
+
+        if (double.IsInfinity(minX) || double.IsInfinity(minY))
+        {
+            return Rect.Empty;
+        }
+
+        return new Rect(minX, minY, Math.Max(0.0, maxX - minX), Math.Max(0.0, maxY - minY));
+    }
+
+    public (List<CanvasElement> ClonedElements, StrokeCollection ClonedStrokes) CreateClonesAtPosition(Point targetPosition)
+    {
+        var bounds = GetBounds();
+        if (bounds.IsEmpty)
+        {
+            return CreateClonesWithOffset(0, 0);
+        }
+
+        var clampedX = Math.Max(0.0, targetPosition.X);
+        var clampedY = Math.Max(0.0, targetPosition.Y);
+
+        var offsetX = clampedX - bounds.Left;
+        var offsetY = clampedY - bounds.Top;
+        return CreateClonesWithOffset(offsetX, offsetY);
     }
 
     public static CanvasElement CloneElement(CanvasElement source, double offsetX, double offsetY)

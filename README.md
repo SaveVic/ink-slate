@@ -4,11 +4,11 @@
 
 **High-Performance, Keyboard-Driven Digital Ink Slate & Lecture Presentation Studio**
 
-[![Build & Test](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml/badge.svg)](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml)
+[![Continuous Integration](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml/badge.svg)](https://github.com/SaveVic/ink-slate/actions/workflows/ci.yml)
+[![Build & Release](https://github.com/SaveVic/ink-slate/actions/workflows/release.yml/badge.svg)](https://github.com/SaveVic/ink-slate/actions/workflows/release.yml)
 [![Target Framework](https://img.shields.io/badge/.NET-10.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Tests Passing](https://img.shields.io/badge/Tests-271%20Passed-brightgreen)](https://github.com/SaveVic/ink-slate)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20(x64%20%7C%20ARM64)-0078D6?logo=windows)](https://github.com/SaveVic/ink-slate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 *Built from the ground up for educators, mathematicians, engineers, and presenters who require real-time stylus responsiveness, fluid keyboard ergonomics, and pristine vector exports.*
 
@@ -34,13 +34,21 @@ Designed specifically for interactive teaching and mathematical lectures, InkSla
 
 ### 🎯 Keyboard-First Teaching Workflow
 - Keep presentations moving at lecture pace with single-key shortcuts:
-  - `V` for Pointer & Canvas Pan mode
+  - `V` for **Pointer Tool** (single-click select, live drag-move, rectangle marquee selection, and right-click drag pan)
   - `P` for Pen, `H` for Highlighter, `E` for Eraser cycling, `L` for Lasso cycling
   - `T` for Instant Text placement, `I` for Image insertion
-  - Hold `Space` for temporary hand pan across the canvas
+  - Hold `Space` (or right-click drag in Pointer mode) for temporary hand pan across the canvas
+  - `Ctrl+C` and `Ctrl+V` to duplicate objects and paste them precisely at your cursor position
   - `F2` to rename the document title inline in the TitleBar
   - `F5` to toggle between continuous vertical scrolling and single-slide presentation mode
   - `F11` to toggle true fullscreen presentation view
+
+### 👆 Precision Pointer & Object Manipulation
+- **Right-Click Drag to Pan**: Pan the canvas viewport fluidly without switching tools or holding space.
+- **Single-Object Selection**: Left-click any object—including individual handwriting strokes, text blocks, or images—to select it with a bounding box.
+- **Live Drag-to-Move**: Click and drag anywhere inside the selection box to reposition objects across the page with full undo/redo tracking.
+- **Marquee Selection**: Drag on empty space to draw a rectangular selection marquee around objects and strokes.
+- **Cursor State Awareness**: Automatically switches between standard arrow outside selections and Move (`SizeAll`) cursor inside active selection bounds.
 
 ### 📄 Dual View Modes & Adaptive Canvas
 - **Consecutive Mode**: Virtualized, continuous vertical paper roll for long-form lecture derivation and lecture note taking.
@@ -49,8 +57,9 @@ Designed specifically for interactive teaching and mathematical lectures, InkSla
 
 ### 🖼️ Rich Movable Canvas Elements
 - **Draggable Text Cards**: Click-to-type floating text blocks with inline styling (bold, italic, color swatches, font size).
-- **Embedded Visuals**: Paste images directly from the clipboard (`Ctrl+V`) or drag-and-drop image files (`.png`, `.jpg`, `.bmp`).
-- **Proportional Resizing**: Interactive corner grips maintain element aspect ratio while keeping selections active.
+- **Embedded Visuals**: Paste images directly from the clipboard (`Ctrl+V`) at the pointer or drag-and-drop image files (`.png`, `.jpg`, `.bmp`).
+- **Interactive Corner Resizing**: Interactive corner grips on selected images allow smooth proportional resizing with bounding box synchronization.
+- **Cursor-Targeted Copy & Paste**: Copied objects (`Ctrl+C`) paste at the exact current cursor location (`Ctrl+V`), automatically deselecting prior items and selecting the new duplicate.
 
 ### 🔍 Geometric Smart Lasso
 - Custom polygonal lasso selection tool powered by ray-casting point-in-polygon algorithms.
@@ -96,6 +105,8 @@ Designed specifically for interactive teaching and mathematical lectures, InkSla
 | `Ctrl + O` | **Open** `.notex` document | Global |
 | `Ctrl + S` | **Save** `.notex` document | Global |
 | `Ctrl + E` | **Export PDF** dialog | Global |
+| `Ctrl + C` | **Copy** selected element or stroke | Active selection |
+| `Ctrl + V` | **Paste** copied element/stroke at cursor position | Global canvas |
 | `Ctrl + Z` | **Undo** last action | History |
 | `Ctrl + Y` | **Redo** last action | History |
 | `Ctrl + Enter` | **Add New Page** after active page | Document |
@@ -114,10 +125,12 @@ ink-slate/
 │   └── UndoRedo/                # UndoRedoManager, atomic reversible operations
 ├── InkSlate.App/                # Modern WPF presentation layer (.NET 10 + WPF-UI)
 │   ├── Assets/                  # Application icons and frozen resources
-│   ├── Controls/                # PageCanvasControl, ZoomScrollViewer, ElementContainer
+│   ├── Controls/                # PageCanvasControl (*.Pointer, *.Eraser, *.Elements, *.Strokes)
 │   ├── Converters/              # HexToFrozenBrushConverter, XAML helpers
+│   ├── Themes/                  # SharedStyles.xaml resource dictionary
 │   ├── ViewModels/              # MainViewModel, PageViewModel, ToolbarViewModel
-│   └── Views/                   # MainWindow.xaml (Mica Fluent shell)
+│   └── Views/                   # MainWindow.xaml (Mica Fluent shell), MainWindow.Navigation.cs
+│       └── Components/          # Modular UserControls (Popovers, Overlays, and Status HUD)
 ├── InkSlate.Tests/              # Automated testing suite (xUnit + CsCheck)
 │   ├── Property-based tests     # PageRangeParser, DocumentValidator fuzzing
 │   ├── Security test suites     # Zip Slip, Zip Bomb, and corrupted ISF recovery

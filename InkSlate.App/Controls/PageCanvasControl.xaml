@@ -329,13 +329,15 @@
     <Grid x:Name="RootGrid"
           ClipToBounds="True"
           Background="Transparent">
-        <InkCanvas x:Name="InternalInkCanvas"
-                   Background="Transparent"
-                   ClipToBounds="True"
-                   Stylus.IsPressAndHoldEnabled="False"
-                   Stylus.IsFlicksEnabled="False"
-                   Stylus.IsTapFeedbackEnabled="False"
-                   Stylus.IsTouchFeedbackEnabled="False" />
+        <AdornerDecorator>
+            <InkCanvas x:Name="InternalInkCanvas"
+                       Background="Transparent"
+                       ClipToBounds="True"
+                       Stylus.IsPressAndHoldEnabled="False"
+                       Stylus.IsFlicksEnabled="False"
+                       Stylus.IsTapFeedbackEnabled="False"
+                       Stylus.IsTouchFeedbackEnabled="False" />
+        </AdornerDecorator>
         <Canvas x:Name="CursorOverlayCanvas"
                 IsHitTestVisible="False"
                 ClipToBounds="True">
@@ -345,6 +347,21 @@
                      Stroke="#801E1E1E"
                      StrokeThickness="1"
                      Fill="#141E1E1E" />
+            <!-- Selection indicator around selected pen strokes in Pointer mode -->
+            <Rectangle x:Name="StrokeSelectionBorder"
+                       IsHitTestVisible="False"
+                       Visibility="Collapsed"
+                       Stroke="#FF0078D4"
+                       StrokeThickness="1"
+                       StrokeDashArray="3 2" />
+            <!-- Live rectangular area marquee for Pointer mode drag-select -->
+            <Rectangle x:Name="PointerSelectionRectangle"
+                       IsHitTestVisible="False"
+                       Visibility="Collapsed"
+                       Stroke="#FF0078D4"
+                       StrokeThickness="1"
+                       StrokeDashArray="4 2"
+                       Fill="#1A0078D4" />
         </Canvas>
     </Grid>
 </UserControl>

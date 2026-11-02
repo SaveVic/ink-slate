@@ -1,6 +1,8 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
+using InkSlate.App.Controls;
 using InkSlate.App.ViewModels;
 using InkSlate.App.Views;
 using InkSlate.Core.Models;
@@ -264,6 +266,262 @@ public sealed class ObjectAndStrokeCopyPasteTests
 
             Assert.False(page.Elements[0].IsSelected);
             Assert.Null(page.SelectedStrokes);
+        });
+    }
+
+    [Fact]
+    public void CopyAndPasteTextElement_AtCursorPosition_PlacesElementAtTargetPosition()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var originalModel = new TextCanvasElement
+            {
+                X = 100.0,
+                Y = 100.0,
+                Width = 200.0,
+                Height = 60.0,
+                Text = "Cursor Paste Test"
+            };
+            activePage.AddElement(originalModel);
+            activePage.Elements[0].IsSelected = true;
+
+            vm.CopySelectedCommand.Execute(null);
+
+            // Paste at cursor position (350, 420)
+            vm.PasteClipboardCommand.Execute(new Point(350, 420));
+
+            Assert.Equal(2, activePage.Elements.Count);
+            var pasted = activePage.Elements[1];
+            Assert.NotEqual(originalModel.Id, pasted.Model.Id);
+            Assert.Equal(350.0, pasted.X, tolerance: 0.001);
+            Assert.Equal(420.0, pasted.Y, tolerance: 0.001);
+            Assert.True(pasted.IsSelected);
+
+            // Undo removes pasted element
+            vm.UndoCommand.Execute(null);
+            Assert.Single(activePage.Elements);
+
+            // Redo restores pasted element at the cursor position
+            vm.RedoCommand.Execute(null);
+            Assert.Equal(2, activePage.Elements.Count);
+            Assert.Equal(350.0, activePage.Elements[1].X, tolerance: 0.001);
+            Assert.Equal(420.0, activePage.Elements[1].Y, tolerance: 0.001);
+        });
+    }
+
+    [Fact]
+    public void CopyAndPasteStrokes_AtCursorPosition_PlacesStrokesAtTargetPosition()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var originalPoints = new StylusPointCollection
+            {
+                new StylusPoint(50, 60),
+                new StylusPoint(100, 110),
+                new StylusPoint(150, 160)
+            };
+            var stroke = new Stroke(originalPoints);
+            activePage.Strokes!.Add(stroke);
+            activePage.SelectedStrokes = [stroke];
+
+            vm.CopySelectedCommand.Execute(null);
+
+            // Paste at cursor position (300, 450)
+            vm.PasteClipboardCommand.Execute(new Point(300, 450));
+
+            Assert.Equal(2, activePage.Strokes.Count);
+            var pastedStroke = activePage.Strokes[1];
+            Assert.NotSame(stroke, pastedStroke);
+
+            var bounds = pastedStroke.GetBounds();
+            Assert.Equal(300.0, bounds.Left, tolerance: 0.05);
+            Assert.Equal(450.0, bounds.Top, tolerance: 0.05);
+            Assert.NotNull(activePage.SelectedStrokes);
+            Assert.Contains(pastedStroke, activePage.SelectedStrokes);
+        });
+    }
+
+    [Fact]
+    public void CopyAndPasteMultipleObjects_AtCursorPosition_PreservesRelativeOffsetAndPlacesAtTarget()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var text = new TextCanvasElement { X = 100, Y = 100, Width = 80, Height = 40, Text = "Multiple" };
+            activePage.AddElement(text);
+            activePage.Elements[0].IsSelected = true;
+
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(150, 200),
+                new StylusPoint(200, 250)
+            });
+            activePage.Strokes!.Add(stroke);
+            activePage.SelectedStrokes = [stroke];
+
+            // Overall bounds top-left is (100, 100)
+            vm.CopySelectedCommand.Execute(null);
+
+            // Paste at cursor position (500, 600) -> delta (+400, +500)
+            vm.PasteClipboardCommand.Execute(new Point(500, 600));
+
+            Assert.Equal(2, activePage.Elements.Count);
+            Assert.Equal(2, activePage.Strokes.Count);
+
+            var pastedText = activePage.Elements[1];
+            var pastedStroke = activePage.Strokes[1];
+
+            Assert.Equal(500.0, pastedText.X, tolerance: 0.001);
+            Assert.Equal(600.0, pastedText.Y, tolerance: 0.001);
+
+            Assert.Equal(550.0, pastedStroke.StylusPoints[0].X, tolerance: 0.05);
+            Assert.Equal(700.0, pastedStroke.StylusPoints[0].Y, tolerance: 0.05);
+        });
+    }
+
+    [Fact]
+    public void CopyAndPaste_CursorPositionProvider_UsedWhenNoParameterPassed()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var text = new TextCanvasElement { X = 80, Y = 80, Text = "Provider Test" };
+            activePage.AddElement(text);
+            activePage.Elements[0].IsSelected = true;
+
+            vm.CopySelectedCommand.Execute(null);
+
+            // Register provider that simulates active cursor position on canvas
+            vm.CursorPositionProvider = () => new Point(250, 350);
+
+            vm.PasteClipboardCommand.Execute(null);
+
+            Assert.Equal(2, activePage.Elements.Count);
+            var pasted = activePage.Elements[1];
+            Assert.Equal(250.0, pasted.X, tolerance: 0.001);
+            Assert.Equal(350.0, pasted.Y, tolerance: 0.001);
+        });
+    }
+
+    [Fact]
+    public void Paste_DeselectsPreviousElement_AndSelectsPastedElement()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var text = new TextCanvasElement { X = 50, Y = 50, Text = "Element 1" };
+            activePage.AddElement(text);
+            activePage.Elements[0].IsSelected = true;
+
+            vm.CopySelectedCommand.Execute(null);
+
+            // Prior to paste, element 0 is selected
+            Assert.True(activePage.Elements[0].IsSelected);
+
+            vm.PasteClipboardCommand.Execute(new Point(200, 200));
+
+            // After paste: previous element MUST be deselected, pasted element MUST be selected
+            Assert.Equal(2, activePage.Elements.Count);
+            Assert.False(activePage.Elements[0].IsSelected);
+            Assert.True(activePage.Elements[1].IsSelected);
+        });
+    }
+
+    [Fact]
+    public void Paste_DeselectsPreviousStroke_AndSelectsPastedStroke()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var stroke1 = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(30, 30),
+                new StylusPoint(60, 60)
+            });
+            activePage.Strokes!.Add(stroke1);
+            activePage.SelectedStrokes = [stroke1];
+
+            vm.CopySelectedCommand.Execute(null);
+
+            // Prior to paste, stroke1 is selected
+            Assert.Contains(stroke1, activePage.SelectedStrokes);
+
+            vm.PasteClipboardCommand.Execute(new Point(300, 300));
+
+            // After paste: stroke1 MUST be deselected, stroke2 MUST be selected
+            Assert.Equal(2, activePage.Strokes.Count);
+            var stroke2 = activePage.Strokes[1];
+            Assert.NotNull(activePage.SelectedStrokes);
+            Assert.DoesNotContain(stroke1, activePage.SelectedStrokes);
+            Assert.Contains(stroke2, activePage.SelectedStrokes);
+        });
+    }
+
+    [Fact]
+    public void PageCanvasControl_PasteSync_UpdatesControlSelectionAndBorder()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new MainViewModel();
+            var activePage = vm.ActivePage!;
+            activePage.Hydrate();
+
+            var control = new PageCanvasControl
+            {
+                DataContext = activePage,
+                PageStrokes = activePage.Strokes,
+                ActiveToolMode = ToolMode.Pointer
+            };
+
+            var stroke1 = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100, 100),
+                new StylusPoint(150, 150)
+            });
+            activePage.Strokes!.Add(stroke1);
+
+            // Select stroke 1
+            control.PointerLeftDown(new Point(100, 100));
+            control.PointerLeftUp(new Point(100, 100));
+
+            Assert.Single(control.InkSurface.GetSelectedStrokes());
+            Assert.Same(stroke1, control.InkSurface.GetSelectedStrokes()[0]);
+            Assert.Equal(Visibility.Visible, control.StrokeSelectionBorder.Visibility);
+
+            // Copy stroke 1 and paste at (400, 400)
+            vm.CopySelectedCommand.Execute(null);
+            vm.PasteClipboardCommand.Execute(new Point(400, 400));
+            control.SyncSelectionFromViewModel(activePage.SelectedStrokes);
+
+            // After paste: stroke 1 is deselected, stroke 2 is selected on control
+            var selectedStrokes = control.InkSurface.GetSelectedStrokes();
+            Assert.Single(selectedStrokes);
+            Assert.NotSame(stroke1, selectedStrokes[0]);
+            Assert.Equal(Visibility.Visible, control.StrokeSelectionBorder.Visibility);
+
+            var bounds = selectedStrokes[0].GetBounds();
+            Assert.Equal(400.0, bounds.Left, tolerance: 0.05);
+            Assert.Equal(400.0, bounds.Top, tolerance: 0.05);
         });
     }
 }

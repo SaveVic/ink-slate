@@ -1,15 +1,17 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using InkSlate.App.ViewModels;
-using InkSlate.Core.Models;
 using Wpf.Ui.Controls;
 
 namespace InkSlate.App.Views;
 
 public partial class MainWindow : FluentWindow
 {
+    private readonly List<FrameworkElement> _childComponents = new();
+
     public MainWindow()
         : this(new MainViewModel())
     {
@@ -20,6 +22,9 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         ViewModel = viewModel;
         DataContext = viewModel;
+        ViewModel.CursorPositionProvider = GetCurrentCanvasCursorPosition;
+
+        RegisterChildComponents();
 
         ViewportScrollViewer.ScrollChanged += (_, _) =>
             ViewModel.UpdateVisiblePagesHydration(ViewportScrollViewer.VerticalOffset, ViewportScrollViewer.ViewportHeight);
@@ -34,257 +39,83 @@ public partial class MainWindow : FluentWindow
 
     public MainViewModel ViewModel { get; }
 
-    public bool HandleNavigationKey(Key key, ModifierKeys modifiers)
+    private void RegisterChildComponents()
     {
-        if (modifiers == ModifierKeys.None)
+        if (PenOptionsComponent is not null) _childComponents.Add(PenOptionsComponent);
+        if (EraserOptionsComponent is not null) _childComponents.Add(EraserOptionsComponent);
+        if (LassoFilterComponent is not null) _childComponents.Add(LassoFilterComponent);
+        if (TextOptionsComponent is not null) _childComponents.Add(TextOptionsComponent);
+        if (PageSetupComponent is not null) _childComponents.Add(PageSetupComponent);
+        if (PdfExportComponent is not null) _childComponents.Add(PdfExportComponent);
+        if (CustomPenComponent is not null) _childComponents.Add(CustomPenComponent);
+        if (StatusHudComponent is not null) _childComponents.Add(StatusHudComponent);
+        if (HelpShortcutsComponent is not null) _childComponents.Add(HelpShortcutsComponent);
+
+        var scope = NameScope.GetNameScope(this);
+        if (scope is not null)
         {
-            if (key is Key.PageUp or Key.Left)
+            foreach (var comp in _childComponents)
             {
-                if (ViewModel.PreviousPageCommand.CanExecute(null))
-                {
-                    ViewModel.PreviousPageCommand.Execute(null);
-                    return true;
-                }
+                RegisterNamesRecursively(comp, scope);
             }
-            else if (key is Key.PageDown or Key.Right)
-            {
-                if (ViewModel.NextPageCommand.CanExecute(null))
-                {
-                    ViewModel.NextPageCommand.Execute(null);
-                    return true;
-                }
-            }
-            else if (key == Key.F1)
-            {
-                ViewModel.ToggleHelpCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.Escape && ViewModel.IsHelpOpen)
-            {
-                ViewModel.CloseHelpCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.Escape && ViewModel.Toolbar.IsCustomPenEditorOpen)
-            {
-                ViewModel.Toolbar.CloseCustomPenEditorCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.F2)
-            {
-                if (!ViewModel.IsEditingTitle)
-                {
-                    ViewModel.BeginEditTitleCommand.Execute(null);
-                    return true;
-                }
-            }
-            else if (key == Key.F5)
-            {
-                ViewModel.ToggleViewModeCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.F11)
-            {
-                WindowState = WindowState == WindowState.Maximized
-                    ? WindowState.Normal
-                    : WindowState.Maximized;
-                return true;
-            }
-            else if (key == Key.V)
-            {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pointer);
-                return true;
-            }
-            else if (key == Key.P)
-            {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Pen);
-                return true;
-            }
-            else if (key == Key.H)
-            {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Highlighter);
-                return true;
-            }
-            else if (key == Key.E)
-            {
-                ViewModel.Toolbar.ActivateOrCycleEraserCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.L)
-            {
-                ViewModel.Toolbar.ActivateOrCycleLassoCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.T)
-            {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Text);
-                return true;
-            }
-            else if (key == Key.I)
-            {
-                ViewModel.Toolbar.SelectToolCommand.Execute(ToolMode.Image);
-                return true;
-            }
-            else if (key is Key.Delete or Key.Back)
-            {
-                var hasSelectedElements = ViewModel.Pages.Any(p => p.Elements.Any(e => e.IsSelected && !e.IsEditing));
-                if (hasSelectedElements)
-                {
-                    ViewModel.DeleteSelectedCommand.Execute(null);
-                    return true;
-                }
 
-                var deletedStrokes = false;
-                foreach (var pcc in FindVisualChildren<Controls.PageCanvasControl>(this))
-                {
-                    if (pcc.DeleteSelectedStrokes())
-                    {
-                        deletedStrokes = true;
-                    }
-                }
-
-                if (deletedStrokes)
-                {
-                    return true;
-                }
+            if (PenOptionsComponent?.FindName("PenOptionsBorder") is { } penBorder && scope.FindName("PenOptionsPopover") is null)
+            {
+                scope.RegisterName("PenOptionsPopover", penBorder);
             }
         }
-        else if (modifiers == ModifierKeys.Control)
-        {
-            if (key == Key.N)
-            {
-                if (ViewModel.NewDocumentCommand.CanExecute(null))
-                {
-                    ViewModel.NewDocumentCommand.Execute(null);
-                    return true;
-                }
-            }
-
-            if (key == Key.S)
-            {
-                if (ViewModel.SaveCommand.CanExecute(null))
-                {
-                    ViewModel.SaveCommand.Execute(null);
-                    return true;
-                }
-            }
-
-            if (key == Key.O)
-            {
-                if (ViewModel.OpenCommand.CanExecute(null))
-                {
-                    ViewModel.OpenCommand.Execute(null);
-                    return true;
-                }
-            }
-
-            if (key == Key.E)
-            {
-                if (ViewModel.TogglePdfExportCommand.CanExecute(null))
-                {
-                    ViewModel.TogglePdfExportCommand.Execute(null);
-                    return true;
-                }
-            }
-
-            if (key == Key.Enter)
-            {
-                ViewModel.AddPageCommand.Execute(null);
-                return true;
-            }
-
-            if (key is Key.D0 or Key.NumPad0)
-            {
-                ViewModel.ResetZoomCommand.Execute(null);
-                return true;
-            }
-
-            if (key == Key.C)
-            {
-                if (ViewModel.CopySelectedCommand.CanExecute(null))
-                {
-                    ViewModel.CopySelectedCommand.Execute(null);
-                    return true;
-                }
-            }
-
-            if (key == Key.V)
-            {
-                ViewModel.PasteClipboardCommand.Execute(null);
-                return true;
-            }
-
-            if (key == Key.Z)
-            {
-                if (ViewModel.UndoCommand.CanExecute(null))
-                {
-                    ViewModel.UndoCommand.Execute(null);
-                    return true;
-                }
-            }
-            else if (key == Key.Y)
-            {
-                if (ViewModel.RedoCommand.CanExecute(null))
-                {
-                    ViewModel.RedoCommand.Execute(null);
-                    return true;
-                }
-            }
-        }
-
-        if (ViewModel.Toolbar.TryActivateCustomPenByShortcut(key, modifiers))
-        {
-            return true;
-        }
-
-        return false;
     }
 
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    private static void RegisterNamesRecursively(DependencyObject parent, INameScope scope)
     {
-        ArgumentNullException.ThrowIfNull(e);
-
-        if (e.OriginalSource is System.Windows.Controls.TextBox or Wpf.Ui.Controls.TextBox)
+        foreach (var child in LogicalTreeHelper.GetChildren(parent))
         {
-            base.OnPreviewKeyDown(e);
-            return;
+            if (child is FrameworkElement fe)
+            {
+                if (!string.IsNullOrEmpty(fe.Name) && scope.FindName(fe.Name) is null)
+                {
+                    scope.RegisterName(fe.Name, fe);
+                }
+                RegisterNamesRecursively(fe, scope);
+            }
         }
-
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-
-        if (key == Key.Space && !e.IsRepeat)
-        {
-            ViewportScrollViewer?.SetSpaceKeyDown(true);
-            e.Handled = true;
-            return;
-        }
-
-        if (HandleNavigationKey(key, Keyboard.Modifiers))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        base.OnPreviewKeyDown(e);
     }
 
-    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    public new object? FindName(string name)
     {
-        ArgumentNullException.ThrowIfNull(e);
-
-        if (e.Key == Key.Space)
+        var found = base.FindName(name);
+        if (found is not null)
         {
-            ViewportScrollViewer?.SetSpaceKeyDown(false);
-            e.Handled = true;
-            return;
+            return found;
         }
 
-        base.OnPreviewKeyUp(e);
-    }
+        if (name == "PenOptionsPopover")
+        {
+            var border = PenOptionsComponent?.FindName("PenOptionsBorder");
+            if (border is not null)
+            {
+                return border;
+            }
+        }
 
-    protected override void OnDeactivated(EventArgs e)
-    {
-        ViewportScrollViewer?.SetSpaceKeyDown(false);
-        base.OnDeactivated(e);
+        foreach (var comp in _childComponents)
+        {
+            var compFound = comp.FindName(name);
+            if (compFound is not null)
+            {
+                return compFound;
+            }
+        }
+
+        foreach (var fe in FindVisualChildren<FrameworkElement>(this))
+        {
+            if (fe.Name == name)
+            {
+                return fe;
+            }
+        }
+
+        return null;
     }
 
     private void OnPageNavigationScrollRequested(PageViewModel targetPage)
@@ -316,20 +147,6 @@ public partial class MainWindow : FluentWindow
             HandleTitlePillClick(e.ClickCount);
             e.Handled = true;
         }
-    }
-
-    private void HelpDialogBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (ReferenceEquals(e.OriginalSource, HelpDialogOverlay))
-        {
-            ViewModel.CloseHelpCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
-
-    private void HelpDialogCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
     }
 
     private void TitleEditTextBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -371,113 +188,52 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    private void ColorSwatchButton_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    public Point? GetCurrentCanvasCursorPosition()
     {
-        if (sender is FrameworkElement element && element.DataContext is ColorSwatchOption swatch)
+        var allPageCanvases = FindVisualChildren<Controls.PageCanvasControl>(this).ToList();
+        Controls.PageCanvasControl? targetCanvas = null;
+
+        foreach (var pcc in allPageCanvases)
         {
-            if (swatch.IsCustom)
+            if (pcc.IsMouseOver)
             {
-                ViewModel.Toolbar.RemoveCustomColorCommand.Execute(swatch.Hex);
-                e.Handled = true;
+                targetCanvas = pcc;
+                break;
             }
         }
-    }
 
-    private void ColorSpectrumBox_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement spectrumElement)
+        if (targetCanvas is null && ViewModel.ActivePage is not null)
         {
-            spectrumElement.CaptureMouse();
-            UpdateSpectrumSelection(spectrumElement, e.GetPosition(spectrumElement));
-            e.Handled = true;
+            targetCanvas = allPageCanvases.FirstOrDefault(p => p.PageId == ViewModel.ActivePage.Id);
         }
-    }
 
-    private void ColorSpectrumBox_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (sender is FrameworkElement spectrumElement && spectrumElement.IsMouseCaptured)
+        if (targetCanvas is not null)
         {
-            if (e.LeftButton == MouseButtonState.Pressed)
+            var pos = Mouse.GetPosition(targetCanvas.InternalInkCanvas);
+            var w = targetCanvas.ActualWidth > 0 ? targetCanvas.ActualWidth : (targetCanvas.Width > 0 ? targetCanvas.Width : double.PositiveInfinity);
+            var h = targetCanvas.ActualHeight > 0 ? targetCanvas.ActualHeight : (targetCanvas.Height > 0 ? targetCanvas.Height : double.PositiveInfinity);
+
+            if (pos.X >= 0 && pos.Y >= 0 && pos.X <= w && pos.Y <= h)
             {
-                UpdateSpectrumSelection(spectrumElement, e.GetPosition(spectrumElement));
-                e.Handled = true;
+                if (ViewModel.ActivePage is null || targetCanvas.PageId != ViewModel.ActivePage.Id)
+                {
+                    var pageVm = ViewModel.Pages.FirstOrDefault(p => p.Id == targetCanvas.PageId);
+                    if (pageVm is not null)
+                    {
+                        ViewModel.ActivePage = pageVm;
+                    }
+                }
+                return pos;
             }
-            else
+
+            if (targetCanvas.LastCanvasPointerPosition is { } lastPos &&
+                lastPos.X >= 0 && lastPos.Y >= 0 && lastPos.X <= w && lastPos.Y <= h)
             {
-                spectrumElement.ReleaseMouseCapture();
+                return lastPos;
             }
         }
-    }
 
-    private void ColorSpectrumBox_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement spectrumElement && spectrumElement.IsMouseCaptured)
-        {
-            spectrumElement.ReleaseMouseCapture();
-            e.Handled = true;
-        }
-    }
-
-    private void UpdateSpectrumSelection(FrameworkElement element, Point position)
-    {
-        var width = element.ActualWidth;
-        var height = element.ActualHeight;
-        if (width <= 0 || height <= 0)
-        {
-            return;
-        }
-
-        var saturation = Math.Clamp(position.X / width, 0.0, 1.0);
-        var value = Math.Clamp(1.0 - (position.Y / height), 0.0, 1.0);
-        ViewModel.Toolbar.SetCustomColorSaturationAndValue(saturation, value);
-    }
-
-    private void CustomPenPresetButton_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.DataContext is CustomPenPresetViewModel preset)
-        {
-            ViewModel.Toolbar.OpenEditCustomPenEditorCommand.Execute(preset);
-            e.Handled = true;
-        }
-    }
-
-    private void CustomPenShortcutTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
-            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.System)
-        {
-            return;
-        }
-
-        if (key == Key.Tab)
-        {
-            return;
-        }
-
-        if (key == Key.Escape)
-        {
-            ViewModel.Toolbar.CloseCustomPenEditorCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
-        if (key == Key.Enter)
-        {
-            ViewModel.Toolbar.SaveCustomPenPresetCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
-        if ((key is Key.Back or Key.Delete) && Keyboard.Modifiers == ModifierKeys.None)
-        {
-            ViewModel.Toolbar.ClearCustomPenEditorShortcutCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
-        ViewModel.Toolbar.TrySetCustomPenEditorShortcutFromKey(key, Keyboard.Modifiers);
-        e.Handled = true;
+        return null;
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject

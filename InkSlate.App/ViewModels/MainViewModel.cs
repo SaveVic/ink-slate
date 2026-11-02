@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Ink;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -654,6 +655,12 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var page in Pages)
         {
             page.DeleteSelectedElements();
+            if (page.SelectedStrokes is not null && page.SelectedStrokes.Count > 0 && page.Strokes is not null)
+            {
+                var toRemove = new System.Windows.Ink.StrokeCollection(page.SelectedStrokes);
+                page.Strokes.Remove(toRemove);
+                page.SelectedStrokes = null;
+            }
         }
     }
 
@@ -1044,7 +1051,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public void InsertImageFile(string filePath)
+    public void InsertImageFile(string filePath, Point? targetPosition = null)
     {
         if (ActivePage is null || string.IsNullOrWhiteSpace(filePath))
         {
@@ -1052,10 +1059,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var result = MediaIngestionService.IngestFile(filePath);
-        AddIngestedMediaToActivePage(result);
+        AddIngestedMediaToActivePage(result, targetPosition);
     }
 
-    public void InsertImageBitmap(BitmapSource bitmap)
+    public void InsertImageBitmap(BitmapSource bitmap, Point? targetPosition = null)
     {
         if (ActivePage is null)
         {
@@ -1063,10 +1070,12 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var result = MediaIngestionService.IngestBitmapSource(bitmap);
-        AddIngestedMediaToActivePage(result);
+        AddIngestedMediaToActivePage(result, targetPosition);
     }
 
     public const string InkSlateClipboardFormat = "InkSlate.CanvasClipboardPayload";
+
+    public Func<Point?>? CursorPositionProvider { get; set; }
 
     private CanvasClipboardPayload? _canvasClipboard;
     private int _consecutivePasteCount;
@@ -1160,12 +1169,14 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void PasteClipboard()
+    public void PasteClipboard(Point? targetPosition = null)
     {
         if (ActivePage is null)
         {
             return;
         }
+
+        targetPosition ??= CursorPositionProvider?.Invoke();
 
         CanvasClipboardPayload? payload = null;
 
@@ -1208,10 +1219,20 @@ public sealed partial class MainViewModel : ObservableObject
                 ActivePage.Strokes = [];
             }
 
-            _consecutivePasteCount++;
-            var offset = 20.0 * ((_consecutivePasteCount - 1) % 15 + 1);
+            List<CanvasElement> clonedElements;
+            StrokeCollection clonedStrokes;
 
-            var (clonedElements, clonedStrokes) = payload.CreateClonesWithOffset(offset, offset);
+            if (targetPosition.HasValue)
+            {
+                _consecutivePasteCount = 0;
+                (clonedElements, clonedStrokes) = payload.CreateClonesAtPosition(targetPosition.Value);
+            }
+            else
+            {
+                _consecutivePasteCount++;
+                var offset = 20.0 * ((_consecutivePasteCount - 1) % 15 + 1);
+                (clonedElements, clonedStrokes) = payload.CreateClonesWithOffset(offset, offset);
+            }
 
             foreach (var (assetKey, assetBytes) in payload.AssetBlobs)
             {
@@ -1279,7 +1300,7 @@ public sealed partial class MainViewModel : ObservableObject
                 var bitmap = Clipboard.GetImage();
                 if (bitmap is not null)
                 {
-                    InsertImageBitmap(bitmap);
+                    InsertImageBitmap(bitmap, targetPosition);
                     return;
                 }
             }
@@ -1297,7 +1318,7 @@ public sealed partial class MainViewModel : ObservableObject
                     var ext = Path.GetExtension(file).ToLowerInvariant();
                     if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp")
                     {
-                        InsertImageFile(file);
+                        InsertImageFile(file, targetPosition);
                         return;
                     }
                 }
@@ -1309,7 +1330,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void AddIngestedMediaToActivePage(IngestedMediaResult result)
+    private void AddIngestedMediaToActivePage(IngestedMediaResult result, Point? targetPosition = null)
     {
         if (ActivePage is null)
         {
@@ -1341,10 +1362,23 @@ public sealed partial class MainViewModel : ObservableObject
         displayW = Math.Max(20.0, displayW);
         displayH = Math.Max(20.0, displayH);
 
-        var x = Math.Max(0.0, (ActivePage.Width - displayW) / 2.0);
-        var y = Math.Max(0.0, (ActivePage.Height - displayH) / 2.0);
+        double x;
+        double y;
 
-        ActivePage.AddImageElement(result.AssetKey, result.FrozenBitmap, x, y, displayW, displayH);
+        if (targetPosition.HasValue)
+        {
+            x = Math.Max(0.0, targetPosition.Value.X);
+            y = Math.Max(0.0, targetPosition.Value.Y);
+        }
+        else
+        {
+            x = Math.Max(0.0, (ActivePage.Width - displayW) / 2.0);
+            y = Math.Max(0.0, (ActivePage.Height - displayH) / 2.0);
+        }
+
+        ActivePage.ClearSelection();
+        var imgVm = ActivePage.AddImageElement(result.AssetKey, result.FrozenBitmap, x, y, displayW, displayH);
+        imgVm.IsSelected = true;
     }
 
     private void NotifyPageCountChanged()

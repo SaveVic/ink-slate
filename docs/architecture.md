@@ -10,17 +10,22 @@ InkSlate follows clean architectural separation between domain logic, data model
 
 ```mermaid
 graph TD
-    subgraph UI ["InkSlate.App (Presentation Layer)"]
-        MainWindow["MainWindow (Mica Window / Shell)"]
+    subgraph UI ["InkSlate.App (Modular Presentation Layer)"]
+        MainWindow["MainWindow (Mica Shell & Header)"]
+        NavPartial["MainWindow.Navigation (Keyboard Routing)"]
+        Components["Views/Components (Popovers, Overlays, HUD)"]
+        SharedStyles["Themes/SharedStyles (Resource Dictionary)"]
         MainVM["MainViewModel (Workspace State & Coordination)"]
         ToolbarVM["ToolbarViewModel (Tool Modes & Palettes)"]
         PageVM["PageViewModel (Page State & Element Collections)"]
-        CanvasControl["PageCanvasControl (WPF InkCanvas + Hit Testing)"]
+        CanvasControl["PageCanvasControl (Modular Inking & Pointer Engine)"]
+        CanvasPartials["Canvas Partials (*.Pointer, *.Eraser, *.Elements, *.Strokes)"]
         ZoomViewer["ZoomScrollViewer (Smooth Pan, Zoom, Virtualization)"]
     end
 
     subgraph Core ["InkSlate.Core (Domain & Services Layer)"]
         DocModel["NoteDocument / NotePage / CanvasElements"]
+        Clipboard["CanvasClipboardPayload (In-Memory & System Clipboard)"]
         UndoRedo["UndoRedoManager (Command History & Reversible Ops)"]
         Validator["DocumentValidator (Sanitization & Safety Invariants)"]
         PackageService["FilePackageService (.notex Open Package IO)"]
@@ -42,6 +47,7 @@ graph TD
 - **`InkSlate.Core`**:
   - Independent of any specific UI framework controls (only references WPF drawing primitive contracts such as `StrokeCollection` and `DrawingAttributes` via Windows Desktop targeting).
   - Owns all data models (`NoteDocument`, `NotePage`, `TextCanvasElement`, `ImageCanvasElement`).
+  - Owns the clipboard data interchange payload (`CanvasClipboardPayload`).
   - Contains deterministic serialization logic (`FilePackageService`, `DocumentValidator`).
   - Hosts the vector rendering engine (`PdfExportService` using SkiaSharp).
   - Hosts the background auto-save crash recovery service (`CrashRecoveryService`).
@@ -50,6 +56,11 @@ graph TD
   - Pure WPF presentation shell targeting .NET 10.
   - Implements MVVM with `CommunityToolkit.Mvvm` (`ObservableObject`, `[ObservableProperty]`, `[RelayCommand]`).
   - Integrates modern Windows 11 styling via `WPF-UI` (Mica backdrop, Fluent typography, acrylic popovers).
+  - Decomposed into modular components and partial classes to maintain strict file length hygiene:
+    - **Modular UserControls (`Views/Components/`)**: `PenOptionsPopover`, `EraserOptionsPopover`, `LassoFilterPopover`, `TextOptionsPopover`, `PageSetupPopover`, `PdfExportPopover`, `CustomPenOverlay`, `StatusHudOverlay`, `HelpShortcutsOverlay`.
+    - **Modular Canvas Partial Classes (`Controls/`)**: `PageCanvasControl.Pointer.cs`, `PageCanvasControl.Eraser.cs`, `PageCanvasControl.Elements.cs`, `PageCanvasControl.Strokes.cs`.
+    - **Modular Navigation Partial Class (`Views/`)**: `MainWindow.Navigation.cs` handles all shortcut dispatch and navigation keys.
+    - **Shared Resource Dictionary (`Themes/SharedStyles.xaml`)**: Centralizes reusable brushes, converters, shadow effects, and popover container styles.
   - Hosts custom high-performance controls (`PageCanvasControl`, `ZoomScrollViewer`, `CanvasElementAdorner`).
 - **`InkSlate.Tests`**:
   - Comprehensive unit and property-based verification (`xUnit`, `CsCheck`).
@@ -210,4 +221,70 @@ The export pipeline converts the document coordinate space directly into vector 
 2. **Resource Freezing**:
    - Static adorners, border pens, accent brushes, and shadows are frozen using `.Freeze()` and `po:Freeze="True"`.
    - Page backgrounds use `HexToFrozenBrushConverter` to ensure brushes are cached and immutable across frames.
+
+---
+
+## 7. Pointer Tool, Selection & Live Manipulation Pipeline
+
+The pointer tool (`ToolMode.Pointer`) coordinates selection, dragging, and panning across strokes and canvas elements without mode collisions:
+
+```mermaid
+graph TD
+    Input[Pointer Mouse Event] --> CheckButton{Which Button?}
+    CheckButton -->|Right-Click Drag| PanViewport[Scroll Viewport Offset via ZoomScrollViewer]
+    CheckButton -->|Left-Click Down| HitTestObj{Hit-Test Object or Selection Box?}
+    HitTestObj -->|Inside Selection Box or Object| StartDrag[Begin Live Drag Move]
+    HitTestObj -->|Empty Canvas Space| StartMarquee[Begin Dashed Marquee Selection]
+    StartDrag --> DragMove[Live Offset Translation of Selected Items]
+    StartMarquee --> MarqueeBox[Update Selection Marquee Rectangle]
+    DragMove --> CommitMove[Commit Transformed Rects to Undo/Redo History]
+    MarqueeBox --> CommitSelect[Select Enclosed Strokes and Elements]
+```
+
+### 1. Right-Click Drag Viewport Panning
+- Right-click mouse down captures mouse input and records initial screen coordinates.
+- Mouse move calculates delta displacement and directly applies opposing scroll offsets to `ZoomScrollViewer`.
+- Releases mouse capture on right button release without affecting tool selection or canvas focus.
+
+### 2. Single-Object Hit-Testing & Multi-Type Selection
+- Left-click executes hierarchical hit-testing:
+  1. **Canvas Elements**: Queries visual element containers and checks geometric bounds (`Rect.Contains(point)`).
+  2. **Ink Strokes**: Executes `InternalInkCanvas.Strokes.HitTest(point, 8)` to isolate single strokes under the pointer.
+- Clicking an unselected object deselects previous objects and selects the target.
+- Clicking inside an already-selected object or bounding box maintains the active selection and transitions immediately into drag mode.
+
+### 3. Live Drag-Move Engine
+- Tracks displacement delta $(\Delta x, \Delta y)$ between pointer move events.
+- Concurrently shifts both `CanvasElement` coordinate positions (`element.X += dx`, `element.Y += dy`) and stroke points (`stroke.Transform(matrix, false)`).
+- Recomputes and updates the dashed selection rectangle in real-time.
+- On mouse release, changes commit as a single undoable transaction (`ElementTransformedOperation` or composite operation).
+
+### 4. Marquee Drag Selection
+- Clicking empty space clears current selections and records the marquee drag anchor.
+- Moving the mouse sizes a dashed blue marquee rectangle.
+- Strokes whose bounding boxes intersect the marquee and elements enclosed by the rectangle are highlighted and selected.
+
+### 5. Selection Visual State & Dynamic Cursors
+- When an object or group is selected, `PageCanvasControl` updates the mouse cursor:
+  - Inside the selection bounds: `Cursors.SizeAll` (indicating drag-to-move capability).
+  - Outside the selection bounds: default pointer cursor.
+- When the selected object is deleted (`DeleteSelected()`), the selection box and adorner are immediately cleared.
+
+---
+
+## 8. Clipboard Pipeline & Cursor Coordinate Mapping
+
+InkSlate supports rich cross-object copy and paste with precise cursor placement:
+
+### 1. Payload Serialization
+- Selected elements (Text, Image) and strokes clone into a `CanvasClipboardPayload` instance.
+- Deep clones are generated so modifications to original objects do not taint clipboard content.
+
+### 2. Cursor-Targeted Insertion
+- `MainWindow.GetCurrentCanvasCursorPosition()` maps screen pointer coordinates through the visual tree to the active `PageCanvasControl.InternalInkCanvas`.
+- When `Ctrl+V` executes:
+  - If the cursor is over a page canvas, the copied items are placed directly at that position.
+  - If the cursor is outside the canvas, items default to the active page center.
+  - Newly pasted items are immediately selected, deselecting previous items so the user can immediately drag or transform the pasted duplicate.
+
 

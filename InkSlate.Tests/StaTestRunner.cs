@@ -17,6 +17,10 @@ internal static class StaTestRunner
                 var app = new Application();
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark });
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                {
+                    Source = new Uri("pack://application:,,,/InkSlate.App;component/Themes/SharedStyles.xaml", UriKind.Absolute)
+                });
             }
 
             foreach (var action in WorkQueue.GetConsumingEnumerable())

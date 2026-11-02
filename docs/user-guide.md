@@ -44,6 +44,15 @@ A comprehensive guide for teachers, lecturers, presenters, and note-takers using
 
 ## 2. Inking and Annotation Tools
 
+### 👆 Pointer Tool (`V`)
+The Pointer Tool provides unified selection, movement, and navigation:
+- **Select Object**: Left-click any item (a single pen stroke, image, or text card) to select it with a dashed bounding box.
+- **Move Objects**: Click and drag anywhere inside the selection box to reposition the item across the canvas.
+- **Marquee Selection**: Left-click and drag on empty canvas space to draw a rectangular selection marquee, selecting all strokes and elements within.
+- **Right-Click Drag to Pan**: Press and hold the right mouse button while dragging to pan the viewport smoothly in any direction.
+- **Dynamic Cursor Feedback**: The cursor dynamically switches to a Move cursor (`SizeAll`) when hovering inside the selected box and reverts to the standard pointer when outside.
+- **Clean Deletion**: Pressing `Delete` or `Backspace` deletes the selected object and immediately removes the dashed bounding box.
+
 ### 🖊️ Fountain Pen (`P`)
 - Smooth, natural handwriting with pressure sensitivity and Bézier curve smoothing.
 - Open options to choose pen thickness (`1.5`, `2.5`, `4.0`, `6.5` DIPs) and vibrant dark-mode friendly color swatches.
@@ -72,12 +81,16 @@ Draw a freehand loop around items to select them. Press `L` repeatedly to cycle 
 2. An editable card appears with instant focus.
 3. Format with the text popover (Font Size, Bold, Italic, Color).
 4. Click outside to finish editing; empty cards automatically discard themselves.
-5. Move cards by dragging their header bar; resize using the corner handles.
+5. Move cards by dragging inside their selection box; resize using the corner handles.
 
 ### 🖼️ Images & Diagrams (`I`)
 - **Insert File**: Tap `I` to pick an image file (`.png`, `.jpg`, `.jpeg`, `.bmp`).
-- **Clipboard Paste**: Press `Ctrl + V` anywhere on the canvas to paste a copied screenshot or graphic.
-- **Resize**: Grab any corner handle to resize while maintaining natural aspect ratio.
+- **Clipboard Paste**: Press `Ctrl + V` anywhere on the canvas to paste a copied screenshot or graphic directly at your pointer.
+- **Interactive Corner Resizing**: Selecting an image displays interactive corner handles to resize the graphic smoothly while maintaining aspect ratio.
+- **Copy & Paste at Cursor**:
+  - Select any object or handwritten stroke and press `Ctrl + C`.
+  - Move the cursor to your desired target location and press `Ctrl + V`.
+  - The duplicate is placed precisely at the cursor location, previous objects are deselected, and the newly pasted item is automatically selected for immediate repositioning.
 
 ---
 

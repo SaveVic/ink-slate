@@ -261,4 +261,96 @@ public sealed class ViewportAndPaginationTests
             Assert.Equal(1.0, window.ViewModel.ZoomLevel);
         });
     }
+
+    [Fact]
+    public void DeletedStroke_DoesNotReappear_AfterDehydrateAndHydrate()
+    {
+        RunInSta(() =>
+        {
+            var model = new NotePage { PageNumber = 1, Width = 800, Height = 1000 };
+            var initialStroke = new Stroke(new StylusPointCollection([new StylusPoint(10, 10), new StylusPoint(20, 20)]));
+            var page = new PageViewModel(model, initialStrokes: new StrokeCollection([initialStroke]));
+
+            page.Hydrate();
+            Assert.NotNull(page.Strokes);
+            Assert.Single(page.Strokes);
+
+            // Delete the stroke
+            page.Strokes.Clear();
+
+            // Simulate scenario where IsDirty might have been reset (e.g. autosave or snapshot)
+            page.IsDirty = false;
+
+            // Navigate away -> Dehydrate
+            page.Dehydrate();
+            Assert.False(page.IsHydrated);
+            Assert.Null(page.Strokes);
+            Assert.Equal(0, page.CompressedIsfByteCount);
+
+            // Navigate back -> Hydrate
+            page.Hydrate();
+            Assert.True(page.IsHydrated);
+            Assert.NotNull(page.Strokes);
+            Assert.Empty(page.Strokes);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_DeletedObjectOnPage_DoesNotReappear_WhenNavigatingAheadAndBack()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+            var vm = window.ViewModel;
+
+            // Add pages up to 5
+            for (var i = 0; i < 4; i++)
+            {
+                vm.AddPageCommand.Execute(null);
+            }
+            Assert.Equal(5, vm.TotalPages);
+
+            // Navigate to page 2
+            vm.ActivePage = vm.Pages[1];
+            Assert.Equal(2, vm.ActivePageIndex);
+            var page2 = vm.ActivePage!;
+
+            // Add a stroke and a text element to page 2
+            page2.Hydrate();
+            var stroke = new Stroke(new StylusPointCollection([new StylusPoint(50, 50), new StylusPoint(100, 100)]));
+            page2.Strokes!.Add(stroke);
+            var text = page2.AddTextElement(new Point(20, 20));
+            text.Text = "Temporary text";
+
+            Assert.Single(page2.Strokes);
+            Assert.Single(page2.Elements);
+
+            // Stop editing, select both and delete via DeleteSelectedCommand
+            text.IsEditing = false;
+            text.IsSelected = true;
+            page2.SelectedStrokes = new StrokeCollection([stroke]);
+            vm.DeleteSelectedCommand.Execute(null);
+
+            Assert.Empty(page2.Strokes);
+            Assert.Empty(page2.Elements);
+
+            // Navigate 3 pages ahead to Page 5
+            vm.ActivePage = vm.Pages[4];
+            Assert.Equal(5, vm.ActivePageIndex);
+
+            // Update hydration to simulate continuous virtualization scrolling
+            vm.UpdateVisiblePagesHydration(vm.GetPageVerticalOffset(vm.Pages[4]), 800.0);
+            Assert.False(page2.IsHydrated);
+
+            // Navigate back to Page 2
+            vm.ActivePage = vm.Pages[1];
+            Assert.Equal(2, vm.ActivePageIndex);
+            vm.UpdateVisiblePagesHydration(vm.GetPageVerticalOffset(page2), 800.0);
+
+            // Verify deleted objects do NOT reappear
+            Assert.NotNull(page2.Strokes);
+            Assert.Empty(page2.Strokes);
+            Assert.Empty(page2.Elements);
+        });
+    }
 }

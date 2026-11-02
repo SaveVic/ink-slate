@@ -273,11 +273,9 @@ public sealed class PdfExportFlyoutTests : IDisposable
         Assert.True(vm.IsExportStatusVisible);
         Assert.True(vm.IsExportCompleted);
 
-        // Wait for dismiss delay to expire
-        var deadline = DateTime.UtcNow.AddMilliseconds(1500);
-        while (vm.IsExportStatusVisible && DateTime.UtcNow < deadline)
+        if (vm.ExportStatusDismissTask is not null)
         {
-            await Task.Delay(25);
+            await vm.ExportStatusDismissTask;
         }
 
         Assert.False(vm.IsExportStatusVisible);

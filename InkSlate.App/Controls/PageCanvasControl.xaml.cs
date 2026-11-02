@@ -141,6 +141,7 @@ public partial class PageCanvasControl : UserControl
         AttachCanvasHandlers();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        DataContextChanged += OnDataContextChanged;
 
         RefreshEraserShape();
         UpdateEditingMode();
@@ -151,6 +152,24 @@ public partial class PageCanvasControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e) => AttachCanvasHandlers();
     private void OnUnloaded(object sender, RoutedEventArgs e) => DetachCanvasHandlers();
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is PageViewModel pageVm)
+        {
+            PageId = pageVm.Id;
+            SyncStrokesFromProperty(pageVm.Strokes);
+            SyncElementsFromProperty(pageVm.Elements);
+            UpdateStrokeSelectionBorder();
+            UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
+        }
+        else if (e.NewValue is null)
+        {
+            SyncStrokesFromProperty(null);
+            SyncElementsFromProperty(null);
+            UpdateStrokeSelectionBorder();
+        }
+    }
 
     public void AttachCanvasHandlers()
     {
@@ -165,18 +184,11 @@ public partial class PageCanvasControl : UserControl
         InternalInkCanvas.SelectionMoved += OnInkCanvasSelectionMoved;
         InternalInkCanvas.SelectionResized += OnInkCanvasSelectionResized;
 
-        var targetStrokes = PageStrokes ?? InternalInkCanvas.Strokes;
-        AttachStrokesHandler(targetStrokes);
+        var targetStrokes = PageStrokes ?? (DataContext as PageViewModel)?.Strokes ?? InternalInkCanvas.Strokes;
+        SyncStrokesFromProperty(targetStrokes);
 
-        if (PageElements is INotifyCollectionChanged notify)
-        {
-            if (_observedElements is not null)
-            {
-                _observedElements.CollectionChanged -= OnElementsCollectionChanged;
-            }
-            _observedElements = notify;
-            _observedElements.CollectionChanged += OnElementsCollectionChanged;
-        }
+        var targetElements = PageElements ?? (DataContext as PageViewModel)?.Elements;
+        SyncElementsFromProperty(targetElements);
 
         _areCanvasHandlersAttached = true;
     }

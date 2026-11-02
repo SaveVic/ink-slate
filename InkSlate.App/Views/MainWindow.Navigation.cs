@@ -98,24 +98,28 @@ public partial class MainWindow
             }
             else if (key is Key.Delete or Key.Back)
             {
-                var hasSelectedElements = ViewModel.Pages.Any(p => p.Elements.Any(e => e.IsSelected && !e.IsEditing));
-                if (hasSelectedElements)
-                {
-                    ViewModel.DeleteSelectedCommand.Execute(null);
-                    return true;
-                }
-
-                var deletedStrokes = false;
+                var deletedAny = false;
                 foreach (var pcc in FindVisualChildren<Controls.PageCanvasControl>(this))
                 {
-                    if (pcc.DeleteSelectedStrokes())
+                    if (pcc.DeleteSelected())
                     {
-                        deletedStrokes = true;
+                        deletedAny = true;
                     }
                 }
 
-                if (deletedStrokes)
+                var hasSelectedInModel = ViewModel.Pages.Any(p =>
+                    p.Elements.Any(e => e.IsSelected && !e.IsEditing) ||
+                    (p.SelectedStrokes is { Count: > 0 }));
+
+                if (hasSelectedInModel)
                 {
+                    ViewModel.DeleteSelectedCommand.Execute(null);
+                    deletedAny = true;
+                }
+
+                if (deletedAny)
+                {
+                    ViewModel.IsDirty = true;
                     return true;
                 }
             }

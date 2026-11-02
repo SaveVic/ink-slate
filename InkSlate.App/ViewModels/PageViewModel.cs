@@ -434,6 +434,8 @@ public sealed partial class PageViewModel : ObservableObject
         {
             if (Strokes.Count == 0)
             {
+                _compressedIsfBytes = null;
+                IsDirty = false;
                 return null;
             }
 
@@ -496,22 +498,18 @@ public sealed partial class PageViewModel : ObservableObject
 
         Strokes.StrokesChanged -= OnStrokesChanged;
 
-        if (IsDirty || _compressedIsfBytes is null)
+        if (Strokes.Count == 0)
         {
-            if (Strokes.Count == 0)
-            {
-                _compressedIsfBytes = null;
-            }
-            else
-            {
-                using var ms = new MemoryStream();
-                Strokes.Save(ms, compress: true);
-                _compressedIsfBytes = ms.ToArray();
-            }
-
-            IsDirty = false;
+            _compressedIsfBytes = null;
+        }
+        else
+        {
+            using var ms = new MemoryStream();
+            Strokes.Save(ms, compress: true);
+            _compressedIsfBytes = ms.ToArray();
         }
 
+        IsDirty = false;
         Strokes = null;
         IsHydrated = false;
     }

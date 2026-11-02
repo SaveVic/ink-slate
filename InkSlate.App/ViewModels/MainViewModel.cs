@@ -304,12 +304,14 @@ public sealed partial class MainViewModel : ObservableObject
     public TimeSpan ExportStatusDismissDelay { get; set; } = DefaultExportStatusDismissDelay;
 
     private CancellationTokenSource? _exportStatusDismissCts;
+    public Task? ExportStatusDismissTask { get; internal set; }
 
     public void CancelExportStatusDismissTimer()
     {
         _exportStatusDismissCts?.Cancel();
         _exportStatusDismissCts?.Dispose();
         _exportStatusDismissCts = null;
+        ExportStatusDismissTask = null;
     }
 
     public void StartExportStatusDismissTimer()
@@ -324,7 +326,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        _ = Task.Run(async () =>
+        ExportStatusDismissTask = Task.Run(async () =>
         {
             try
             {
@@ -652,15 +654,30 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void DeleteSelected()
     {
+        var anyDeleted = false;
         foreach (var page in Pages)
         {
-            page.DeleteSelectedElements();
+            var hasElements = page.Elements.Any(e => e.IsSelected && !e.IsEditing);
+            if (hasElements)
+            {
+                page.DeleteSelectedElements();
+                page.IsDirty = true;
+                anyDeleted = true;
+            }
+
             if (page.SelectedStrokes is not null && page.SelectedStrokes.Count > 0 && page.Strokes is not null)
             {
                 var toRemove = new System.Windows.Ink.StrokeCollection(page.SelectedStrokes);
                 page.Strokes.Remove(toRemove);
                 page.SelectedStrokes = null;
+                page.IsDirty = true;
+                anyDeleted = true;
             }
+        }
+
+        if (anyDeleted)
+        {
+            IsDirty = true;
         }
     }
 

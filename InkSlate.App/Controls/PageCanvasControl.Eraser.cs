@@ -147,6 +147,11 @@ public partial class PageCanvasControl
 
         if (deleted)
         {
+            IsPageDirty = true;
+            if (DataContext is PageViewModel vm)
+            {
+                vm.IsDirty = true;
+            }
             UpdateStrokeSelectionBorder();
             UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
         }
@@ -170,6 +175,7 @@ public partial class PageCanvasControl
                 if (DataContext is PageViewModel pageVm)
                 {
                     pageVm.SelectedStrokes = null;
+                    pageVm.IsDirty = true;
                 }
             }
             finally
@@ -177,6 +183,7 @@ public partial class PageCanvasControl
                 _isSyncingSelection = false;
             }
 
+            IsPageDirty = true;
             UpdateStrokeSelectionBorder();
             UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
             return true;

@@ -909,7 +909,19 @@ public sealed partial class MainViewModel : ObservableObject
                 Document,
                 targetIndices,
                 selectedPath,
-                strokesProvider: id => Pages.FirstOrDefault(p => p.Id == id)?.Strokes,
+                strokesProvider: id =>
+                {
+                    var p = Pages.FirstOrDefault(x => x.Id == id);
+                    if (p is null) return null;
+                    if (p.IsHydrated && p.Strokes is not null) return p.Strokes;
+                    var bytes = p.ExportIsfBytes();
+                    if (bytes is { Length: > 0 })
+                    {
+                        using var ms = new MemoryStream(bytes, writable: false);
+                        return new System.Windows.Ink.StrokeCollection(ms);
+                    }
+                    return new System.Windows.Ink.StrokeCollection();
+                },
                 progress: progress);
 
             ExportProgressPercentage = 100.0;
@@ -1526,6 +1538,35 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             IsSaving = true;
+
+            foreach (var page in Pages)
+            {
+                if (page.IsHydrated && page.Strokes is not null)
+                {
+                    Document.PageStrokes[page.Id] = new System.Windows.Ink.StrokeCollection(page.Strokes);
+                }
+                else
+                {
+                    var isf = page.ExportIsfBytes();
+                    if (isf is { Length: > 0 })
+                    {
+                        using var ms = new MemoryStream(isf, writable: false);
+                        Document.PageStrokes[page.Id] = new System.Windows.Ink.StrokeCollection(ms);
+                    }
+                    else
+                    {
+                        Document.PageStrokes[page.Id] = [];
+                    }
+                }
+            }
+
+            var validPageIds = Pages.Select(p => p.Id).ToHashSet();
+            var staleKeys = Document.PageStrokes.Keys.Where(k => !validPageIds.Contains(k)).ToList();
+            foreach (var key in staleKeys)
+            {
+                Document.PageStrokes.Remove(key);
+            }
+
             await FilePackageService.SaveAsync(
                 Document,
                 filePath,

@@ -435,14 +435,12 @@ public sealed partial class PageViewModel : ObservableObject
             if (Strokes.Count == 0)
             {
                 _compressedIsfBytes = null;
-                IsDirty = false;
                 return null;
             }
 
             using var ms = new MemoryStream();
             Strokes.Save(ms, compress: true);
             _compressedIsfBytes = ms.ToArray();
-            IsDirty = false;
         }
 
         return _compressedIsfBytes is { Length: > 0 } ? [.. _compressedIsfBytes] : null;

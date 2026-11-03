@@ -70,10 +70,12 @@ public static class FilePackageService
                         var isfEntry = archive.CreateEntry(entryPath, CompressionLevel.Optimal);
                         await using var isfStream = isfEntry.Open();
 
+                        var hasCustomProvider = strokesProvider is not null || isfBytesProvider is not null;
                         var strokes = strokesProvider?.Invoke(page.Id);
                         if (strokes is not null)
                         {
                             strokes.Save(isfStream, compress: true);
+                            document.PageStrokes[page.Id] = new StrokeCollection(strokes);
                         }
                         else
                         {
@@ -81,16 +83,33 @@ public static class FilePackageService
                             if (bytes is { Length: > 0 })
                             {
                                 await isfStream.WriteAsync(bytes, ct).ConfigureAwait(false);
+                                try
+                                {
+                                    using var ms = new MemoryStream(bytes, writable: false);
+                                    document.PageStrokes[page.Id] = new StrokeCollection(ms);
+                                }
+                                catch
+                                {
+                                    document.PageStrokes[page.Id] = [];
+                                }
                             }
-                            else if (document.PageStrokes.TryGetValue(page.Id, out var fallbackStrokes) && fallbackStrokes.Count > 0)
+                            else if (!hasCustomProvider && document.PageStrokes.TryGetValue(page.Id, out var fallbackStrokes) && fallbackStrokes.Count > 0)
                             {
                                 fallbackStrokes.Save(isfStream, compress: true);
                             }
                             else
                             {
                                 new StrokeCollection().Save(isfStream, compress: true);
+                                document.PageStrokes[page.Id] = [];
                             }
                         }
+                    }
+
+                    var validPageIds = document.Pages.Select(p => p.Id).ToHashSet();
+                    var stalePageIds = document.PageStrokes.Keys.Where(k => !validPageIds.Contains(k)).ToList();
+                    foreach (var staleId in stalePageIds)
+                    {
+                        document.PageStrokes.Remove(staleId);
                     }
 
                     // 2. Write manifest.json

@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
+using InkSlate.App.ViewModels;
 using InkSlate.Core.Ink;
 using InkSlate.Core.UndoRedo;
 using InkSlate.Core.Services;
@@ -70,10 +71,18 @@ public partial class PageCanvasControl
         {
             _pendingOversizedStrokes.Add(e.Added[0]);
             IsPageDirty = true;
+            if (DataContext is PageViewModel pageVm)
+            {
+                pageVm.IsDirty = true;
+            }
             return;
         }
 
         IsPageDirty = true;
+        if (DataContext is PageViewModel vm)
+        {
+            vm.IsDirty = true;
+        }
 
         var manager = UndoRedoManager;
         if (manager is not null && !manager.IsReplaying)

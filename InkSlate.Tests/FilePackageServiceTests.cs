@@ -555,4 +555,274 @@ public sealed class FilePackageServiceTests : IDisposable
             Assert.Equal(2, loadedP2.Strokes[0].StylusPoints.Count);
         });
     }
+
+    [Fact]
+    public void MainViewModel_DeleteStrokeOnActivePage_Save_Reopen_StrokeIsDeleted()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"delete_stroke_active_{Guid.NewGuid():N}.notex");
+
+            var vm1 = new MainViewModel();
+            var stroke = new Stroke(new StylusPointCollection { new StylusPoint(10, 10), new StylusPoint(20, 20) });
+            vm1.ActivePage!.Hydrate();
+            vm1.ActivePage.Strokes!.Add(stroke);
+            Assert.Single(vm1.ActivePage.Strokes);
+
+            // Save first time with stroke
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+            Assert.True(File.Exists(savePath));
+
+            // Now delete the stroke on active page
+            vm1.ActivePage.SelectedStrokes = new StrokeCollection([stroke]);
+            vm1.DeleteSelectedCommand.Execute(null);
+            Assert.Empty(vm1.ActivePage.Strokes);
+
+            // Save again after deletion
+            vm1.SaveCommand.Execute(null);
+
+            // Open in fresh MainViewModel (simulating app close and reopen)
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+
+            var page = vm2.ActivePage!;
+            page.Hydrate();
+            Assert.NotNull(page.Strokes);
+            Assert.Empty(page.Strokes);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_DeleteStrokeOnDehydratedPage_Save_Reopen_StrokeIsDeleted()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"delete_stroke_dehydrated_{Guid.NewGuid():N}.notex");
+
+            var vm1 = new MainViewModel();
+            vm1.AddPageCommand.Execute(null); // 2 pages
+            Assert.Equal(2, vm1.Pages.Count);
+
+            // Add stroke to page 1
+            var page1 = vm1.Pages[0];
+            page1.Hydrate();
+            var stroke = new Stroke(new StylusPointCollection { new StylusPoint(30, 30), new StylusPoint(40, 40) });
+            page1.Strokes!.Add(stroke);
+
+            // Save first time
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+            Assert.True(File.Exists(savePath));
+
+            // Delete stroke from page 1
+            page1.SelectedStrokes = new StrokeCollection([stroke]);
+            vm1.DeleteSelectedCommand.Execute(null);
+            Assert.Empty(page1.Strokes);
+
+            // Navigate to page 2 -> page 1 is dehydrated
+            vm1.ActivePage = vm1.Pages[1];
+            page1.Dehydrate();
+            Assert.False(page1.IsHydrated);
+
+            // Save while page 1 is dehydrated
+            vm1.SaveCommand.Execute(null);
+
+            // Open in fresh MainViewModel (simulating app close and reopen)
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+
+            var loadedP1 = vm2.Pages[0];
+            loadedP1.Hydrate();
+            Assert.NotNull(loadedP1.Strokes);
+            Assert.Empty(loadedP1.Strokes);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_LoadExistingFile_DeleteStroke_Save_Reopen_StrokeIsDeleted()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"existing_file_delete_{Guid.NewGuid():N}.notex");
+
+            // 1. Create initial file with a stroke and save it
+            var vm1 = new MainViewModel();
+            var stroke = new Stroke(new StylusPointCollection { new StylusPoint(100, 100), new StylusPoint(200, 200) });
+            vm1.ActivePage!.Hydrate();
+            vm1.ActivePage.Strokes!.Add(stroke);
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+            Assert.True(File.Exists(savePath));
+
+            // 2. Open the file in a new session (loads document.PageStrokes)
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+
+            var page = vm2.ActivePage!;
+            page.Hydrate();
+            Assert.Single(page.Strokes!);
+
+            // 3. Delete the stroke
+            page.SelectedStrokes = new StrokeCollection(page.Strokes);
+            vm2.DeleteSelectedCommand.Execute(null);
+            Assert.Empty(page.Strokes!);
+
+            // 4. Save the modified document
+            vm2.SaveCommand.Execute(null);
+
+            // 5. Open in a third session (simulate reopening the app)
+            var vm3 = new MainViewModel();
+            vm3.FileOpenPicker = () => savePath;
+            vm3.OpenCommand.Execute(null);
+
+            var reopenedPage = vm3.ActivePage!;
+            reopenedPage.Hydrate();
+            Assert.NotNull(reopenedPage.Strokes);
+            Assert.Empty(reopenedPage.Strokes!);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_ExistingFile_DeleteStroke_Dehydrate_Save_Reopen_StrokeIsDeleted()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"existing_dehydrated_delete_{Guid.NewGuid():N}.notex");
+
+            // 1. Create file with 2 pages and a stroke on page 1
+            var vm1 = new MainViewModel();
+            vm1.AddPageCommand.Execute(null);
+            var stroke = new Stroke(new StylusPointCollection { new StylusPoint(50, 50), new StylusPoint(60, 60) });
+            var page1 = vm1.Pages[0];
+            page1.Hydrate();
+            page1.Strokes!.Add(stroke);
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+            Assert.True(File.Exists(savePath));
+
+            // 2. Open existing file in session 2 (populates document.PageStrokes)
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+
+            var loadedPage1 = vm2.Pages[0];
+            loadedPage1.Hydrate();
+            Assert.Single(loadedPage1.Strokes!);
+
+            // 3. Delete stroke on page 1
+            loadedPage1.SelectedStrokes = new StrokeCollection(loadedPage1.Strokes);
+            vm2.DeleteSelectedCommand.Execute(null);
+            Assert.Empty(loadedPage1.Strokes!);
+
+            // 4. Navigate away so page 1 dehydrates
+            vm2.ActivePage = vm2.Pages[1];
+            loadedPage1.Dehydrate();
+            Assert.False(loadedPage1.IsHydrated);
+
+            // 5. Save the modified document while page 1 is dehydrated
+            vm2.SaveCommand.Execute(null);
+
+            // 6. Open in session 3 (simulate reopening the app)
+            var vm3 = new MainViewModel();
+            vm3.FileOpenPicker = () => savePath;
+            vm3.OpenCommand.Execute(null);
+
+            var finalPage1 = vm3.Pages[0];
+            finalPage1.Hydrate();
+            Assert.NotNull(finalPage1.Strokes);
+            Assert.Empty(finalPage1.Strokes!);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_ExistingFile_EraserRemovesStroke_Save_Reopen_StrokeIsDeleted()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"eraser_remove_stroke_{Guid.NewGuid():N}.notex");
+
+            // 1. Create file with 1 page and a stroke
+            var vm1 = new MainViewModel();
+            var stroke = new Stroke(new StylusPointCollection { new StylusPoint(10, 10), new StylusPoint(20, 20) });
+            var page = vm1.ActivePage!;
+            page.Hydrate();
+            page.Strokes!.Add(stroke);
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+
+            // 2. Open in new session
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+            var loadedPage = vm2.ActivePage!;
+            loadedPage.Hydrate();
+            Assert.Single(loadedPage.Strokes!);
+
+            // 3. Simulate eraser removing the stroke directly from Strokes
+            loadedPage.Strokes!.Clear();
+            Assert.True(loadedPage.IsDirty);
+            Assert.True(vm2.IsDirty);
+
+            // 4. Save
+            vm2.SaveCommand.Execute(null);
+
+            // 5. Reopen in session 3
+            var vm3 = new MainViewModel();
+            vm3.FileOpenPicker = () => savePath;
+            vm3.OpenCommand.Execute(null);
+            var reopenedPage = vm3.ActivePage!;
+            reopenedPage.Hydrate();
+            Assert.NotNull(reopenedPage.Strokes);
+            Assert.Empty(reopenedPage.Strokes!);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_ExistingFile_PartialStrokeDelete_Save_Reopen_RemainingStrokePersists()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var savePath = Path.Combine(_testDirectory, $"partial_stroke_delete_{Guid.NewGuid():N}.notex");
+
+            // 1. Create file with 2 strokes
+            var vm1 = new MainViewModel();
+            var stroke1 = new Stroke(new StylusPointCollection { new StylusPoint(10, 10), new StylusPoint(20, 20) });
+            var stroke2 = new Stroke(new StylusPointCollection { new StylusPoint(30, 30), new StylusPoint(40, 40) });
+            var page = vm1.ActivePage!;
+            page.Hydrate();
+            page.Strokes!.Add(stroke1);
+            page.Strokes.Add(stroke2);
+            vm1.FileSavePicker = () => savePath;
+            vm1.SaveCommand.Execute(null);
+
+            // 2. Open in new session
+            var vm2 = new MainViewModel();
+            vm2.FileOpenPicker = () => savePath;
+            vm2.OpenCommand.Execute(null);
+            var loadedPage = vm2.ActivePage!;
+            loadedPage.Hydrate();
+            Assert.Equal(2, loadedPage.Strokes!.Count);
+
+            // 3. Delete stroke1 only
+            loadedPage.SelectedStrokes = new StrokeCollection([loadedPage.Strokes![0]]);
+            vm2.DeleteSelectedCommand.Execute(null);
+            Assert.Single(loadedPage.Strokes!);
+
+            // 4. Save
+            vm2.SaveCommand.Execute(null);
+
+            // 5. Reopen in session 3
+            var vm3 = new MainViewModel();
+            vm3.FileOpenPicker = () => savePath;
+            vm3.OpenCommand.Execute(null);
+            var reopenedPage = vm3.ActivePage!;
+            reopenedPage.Hydrate();
+            Assert.NotNull(reopenedPage.Strokes);
+            Assert.Single(reopenedPage.Strokes!);
+        });
+    }
 }

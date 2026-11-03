@@ -237,7 +237,7 @@ public partial class PageCanvasControl : UserControl
         _areCanvasHandlersAttached = false;
     }
 
-    private void OnUndoRedoStateChanged()
+    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
     {
         SnapshotSelectionState();
         UpdateStrokeSelectionBorder();

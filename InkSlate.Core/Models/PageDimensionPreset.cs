@@ -82,7 +82,7 @@ public readonly record struct PageDimensions(double Width, double Height)
 
     public static PageDimensions Clamp(double widthDip, double heightDip, PageDimensions fallback = default)
     {
-        var defaultDims = fallback.Width >= MinDimensionDip && fallback.Height >= MinDimensionDip
+        var defaultDims = IsValidDimension(fallback.Width) && IsValidDimension(fallback.Height)
             ? fallback
             : A4;
 

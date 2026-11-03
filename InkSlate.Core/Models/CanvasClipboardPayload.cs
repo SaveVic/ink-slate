@@ -9,9 +9,24 @@ namespace InkSlate.Core.Models;
 
 public sealed class CanvasClipboardPayload
 {
-    public List<CanvasElement> Elements { get; set; } = [];
+    private List<CanvasElement> _elements = [];
+    private Dictionary<string, byte[]> _assetBlobs = new(StringComparer.OrdinalIgnoreCase);
+
+    public List<CanvasElement> Elements
+    {
+        get => _elements;
+        set => _elements = value ?? [];
+    }
+
     public byte[]? StrokeBytes { get; set; }
-    public Dictionary<string, byte[]> AssetBlobs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, byte[]> AssetBlobs
+    {
+        get => _assetBlobs;
+        set => _assetBlobs = value is not null
+            ? new Dictionary<string, byte[]>(value, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+    }
 
     [JsonIgnore]
     public bool IsEmpty => Elements.Count == 0 && (StrokeBytes is null || StrokeBytes.Length == 0);
@@ -35,23 +50,36 @@ public sealed class CanvasClipboardPayload
             return [];
         }
 
-        using var ms = new MemoryStream(bytes, writable: false);
-        return new StrokeCollection(ms);
+        try
+        {
+            using var ms = new MemoryStream(bytes, writable: false);
+            return new StrokeCollection(ms);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return [];
+        }
     }
 
     public (List<CanvasElement> ClonedElements, StrokeCollection ClonedStrokes) CreateClonesWithOffset(double offsetX, double offsetY)
     {
+        var safeOffsetX = double.IsFinite(offsetX) ? offsetX : 0.0;
+        var safeOffsetY = double.IsFinite(offsetY) ? offsetY : 0.0;
+
         var clonedElements = new List<CanvasElement>(Elements.Count);
         foreach (var el in Elements)
         {
-            clonedElements.Add(CloneElement(el, offsetX, offsetY));
+            if (el is not null)
+            {
+                clonedElements.Add(CloneElement(el, safeOffsetX, safeOffsetY));
+            }
         }
 
         var clonedStrokes = DeserializeStrokesFromBytes(StrokeBytes);
-        if (clonedStrokes.Count > 0 && (Math.Abs(offsetX) > 0.001 || Math.Abs(offsetY) > 0.001))
+        if (clonedStrokes.Count > 0 && (Math.Abs(safeOffsetX) > 0.001 || Math.Abs(safeOffsetY) > 0.001))
         {
             var matrix = new Matrix();
-            matrix.Translate(offsetX, offsetY);
+            matrix.Translate(safeOffsetX, safeOffsetY);
             foreach (var stroke in clonedStrokes)
             {
                 stroke.Transform(matrix, false);
@@ -70,10 +98,17 @@ public sealed class CanvasClipboardPayload
 
         foreach (var el in Elements)
         {
+            if (el is null || !double.IsFinite(el.X) || !double.IsFinite(el.Y))
+            {
+                continue;
+            }
+
+            var w = double.IsFinite(el.Width) ? Math.Max(0.0, el.Width) : 0.0;
+            var h = double.IsFinite(el.Height) ? Math.Max(0.0, el.Height) : 0.0;
             minX = Math.Min(minX, el.X);
             minY = Math.Min(minY, el.Y);
-            maxX = Math.Max(maxX, el.X + Math.Max(0.0, el.Width));
-            maxY = Math.Max(maxY, el.Y + Math.Max(0.0, el.Height));
+            maxX = Math.Max(maxX, el.X + w);
+            maxY = Math.Max(maxY, el.Y + h);
         }
 
         var strokes = DeserializeStrokesFromBytes(StrokeBytes);
@@ -89,7 +124,7 @@ public sealed class CanvasClipboardPayload
             }
         }
 
-        if (double.IsInfinity(minX) || double.IsInfinity(minY))
+        if (!double.IsFinite(minX) || !double.IsFinite(minY))
         {
             return Rect.Empty;
         }
@@ -100,7 +135,7 @@ public sealed class CanvasClipboardPayload
     public (List<CanvasElement> ClonedElements, StrokeCollection ClonedStrokes) CreateClonesAtPosition(Point targetPosition)
     {
         var bounds = GetBounds();
-        if (bounds.IsEmpty)
+        if (bounds.IsEmpty || !double.IsFinite(targetPosition.X) || !double.IsFinite(targetPosition.Y))
         {
             return CreateClonesWithOffset(0, 0);
         }

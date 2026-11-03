@@ -385,8 +385,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
 
         if (e.Key == Key.Space && !e.IsRepeat && e.OriginalSource is not TextBox)
         {
-            _isSpaceKeyDown = true;
-            UpdateCursor();
+            SetSpaceKeyDown(true);
         }
 
         base.OnPreviewKeyDown(e);
@@ -398,8 +397,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
 
         if (e.Key == Key.Space)
         {
-            _isSpaceKeyDown = false;
-            UpdateCursor();
+            SetSpaceKeyDown(false);
         }
 
         base.OnPreviewKeyUp(e);
@@ -408,8 +406,7 @@ public sealed class ZoomScrollViewer : ScrollViewer
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnLostKeyboardFocus(e);
-        _isSpaceKeyDown = false;
-        UpdateCursor();
+        SetSpaceKeyDown(false);
     }
 
     protected override void OnPreviewStylusDown(StylusDownEventArgs e)

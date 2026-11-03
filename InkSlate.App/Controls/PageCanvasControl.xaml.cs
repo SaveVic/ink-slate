@@ -190,6 +190,12 @@ public partial class PageCanvasControl : UserControl
         var targetElements = PageElements ?? (DataContext as PageViewModel)?.Elements;
         SyncElementsFromProperty(targetElements);
 
+        if (UndoRedoManager is not null)
+        {
+            UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
+            UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
+        }
+
         _areCanvasHandlersAttached = true;
     }
 
@@ -206,6 +212,11 @@ public partial class PageCanvasControl : UserControl
         InternalInkCanvas.SelectionMoved -= OnInkCanvasSelectionMoved;
         InternalInkCanvas.SelectionResized -= OnInkCanvasSelectionResized;
 
+        if (UndoRedoManager is not null)
+        {
+            UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
+        }
+
         DetachStrokesHandler();
 
         if (_observedElements is not null)
@@ -214,11 +225,22 @@ public partial class PageCanvasControl : UserControl
             _observedElements = null;
         }
 
+        foreach (var element in _containers.Keys)
+        {
+            element.PropertyChanged -= OnElementPropertyChanged;
+        }
+
         _selectedElementInitialBounds.Clear();
         _selectedStrokeInitialPoints.Clear();
         _pendingOversizedStrokes.Clear();
 
         _areCanvasHandlersAttached = false;
+    }
+
+    private void OnUndoRedoStateChanged()
+    {
+        SnapshotSelectionState();
+        UpdateStrokeSelectionBorder();
     }
 
     public Guid PageId
@@ -352,11 +374,29 @@ public partial class PageCanvasControl : UserControl
             }
 
             var canvasPos = e.GetPosition(InternalInkCanvas);
+            if (e.ClickCount == 2 && HitTestTopmostElement(canvasPos) is TextCanvasElementViewModel textVm)
+            {
+                SelectSingleObject(textVm, null);
+                textVm.IsEditing = true;
+                _isPointerDraggingObjects = false;
+                if (IsMouseCaptured)
+                {
+                    ReleaseMouseCapture();
+                }
+                e.Handled = true;
+                return;
+            }
+
             PointerLeftDown(canvasPos);
             e.Handled = true;
         }
         else if (ActiveToolMode is not ToolMode.Pen and not ToolMode.Highlighter)
         {
+            if (ActiveToolMode == ToolMode.Eraser && ActiveEraserMode == EraserMode.Object)
+            {
+                EraseElementsAtPoint(pos);
+            }
+
             var isInteractive = IsInsideElementOrAdorner(e.OriginalSource as DependencyObject);
             if (!isInteractive)
             {
@@ -510,7 +550,18 @@ public partial class PageCanvasControl : UserControl
     {
         if (d is PageCanvasControl control)
         {
+            if (e.OldValue is UndoRedoManager oldMgr)
+            {
+                oldMgr.StateChanged -= control.OnUndoRedoStateChanged;
+            }
+
             var mgr = e.NewValue as UndoRedoManager;
+            if (mgr is not null && control._areCanvasHandlersAttached)
+            {
+                mgr.StateChanged -= control.OnUndoRedoStateChanged;
+                mgr.StateChanged += control.OnUndoRedoStateChanged;
+            }
+
             foreach (var container in control._containers.Values)
             {
                 container.UndoRedo = mgr;
@@ -620,6 +671,7 @@ public partial class PageCanvasControl : UserControl
         }
         else
         {
+            UpdateStrokeSelectionBorder();
             UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
         }
 
@@ -641,17 +693,27 @@ public partial class PageCanvasControl : UserControl
 
     public void SelectExclusive(CanvasElementViewModel? element)
     {
-        if (DataContext is PageViewModel pageVm)
-        {
-            pageVm.SelectSingleElement(element);
-            pageVm.SelectedStrokes = null;
-        }
-
         _isSyncingSelection = true;
         try
         {
+            if (DataContext is PageViewModel pageVm)
+            {
+                pageVm.SelectSingleElement(element);
+                pageVm.SelectedStrokes = null;
+            }
+
             SelectedStrokes = null;
-            InternalInkCanvas.Select(null, null);
+            var elements = new List<UIElement>();
+            if (element is not null && _containers.TryGetValue(element, out var container))
+            {
+                elements.Add(container);
+            }
+            InternalInkCanvas.Select(new StrokeCollection(), elements);
+            foreach (var c in _containers.Values)
+            {
+                c.RefreshAdornerAttachment();
+            }
+            UpdateStrokeSelectionBorder();
         }
         finally
         {
@@ -667,13 +729,13 @@ public partial class PageCanvasControl : UserControl
 
             if (string.IsNullOrWhiteSpace(textVm.Text))
             {
-                if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(textVm))
+                if (DataContext is PageViewModel pageVm)
+                {
+                    pageVm.RemoveEmptyTextElement(textVm);
+                }
+                else if (RemoveElementCommand is not null && RemoveElementCommand.CanExecute(textVm))
                 {
                     RemoveElementCommand.Execute(textVm);
-                }
-                else if (DataContext is PageViewModel pageVm)
-                {
-                    pageVm.RemoveElement(textVm);
                 }
             }
         }

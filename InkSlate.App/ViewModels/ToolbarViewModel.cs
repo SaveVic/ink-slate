@@ -540,9 +540,11 @@ public sealed partial class ToolbarViewModel : ObservableObject
         IsCustomColorPickerOpen = !IsCustomColorPickerOpen;
         if (IsCustomColorPickerOpen)
         {
-            var activeHex = IsTextOptionsOpen || ActiveTool == ToolMode.Text
-                ? SelectedTextColorHex
-                : (ActiveTool == ToolMode.Highlighter ? SelectedHighlighterColorHex : SelectedPenColorHex);
+            var activeHex = IsCustomPenEditorOpen
+                ? CustomPenEditorColorHex
+                : (IsTextOptionsOpen || ActiveTool == ToolMode.Text
+                    ? SelectedTextColorHex
+                    : (ActiveTool == ToolMode.Highlighter ? SelectedHighlighterColorHex : SelectedPenColorHex));
 
             if (TryParseRgb(activeHex, out var r, out var g, out var b))
             {
@@ -582,7 +584,11 @@ public sealed partial class ToolbarViewModel : ObservableObject
             }
         }
 
-        if (IsTextOptionsOpen || ActiveTool == ToolMode.Text)
+        if (IsCustomPenEditorOpen)
+        {
+            SelectCustomPenEditorColor(hex);
+        }
+        else if (IsTextOptionsOpen || ActiveTool == ToolMode.Text)
         {
             SelectTextColor(hex);
         }
@@ -626,9 +632,20 @@ public sealed partial class ToolbarViewModel : ObservableObject
             ApplyAttributesToSharedInstance();
         }
 
+        if (string.Equals(SelectedHighlighterColorHex, hex, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedHighlighterColorHex = DefaultHighlighterColorHex;
+            ApplyAttributesToSharedInstance();
+        }
+
         if (string.Equals(SelectedTextColorHex, hex, StringComparison.OrdinalIgnoreCase))
         {
             SelectedTextColorHex = DefaultTextColorHex;
+        }
+
+        if (string.Equals(CustomPenEditorColorHex, hex, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectCustomPenEditorColor(DefaultPenColorHex);
         }
 
         UpdateSubtoolSelectionStates();
@@ -1065,18 +1082,18 @@ public sealed partial class ToolbarViewModel : ObservableObject
         var hasCtrl = parts.Any(p => string.Equals(p, "ctrl", StringComparison.OrdinalIgnoreCase) || string.Equals(p, "control", StringComparison.OrdinalIgnoreCase));
         var hasAlt = parts.Any(p => string.Equals(p, "alt", StringComparison.OrdinalIgnoreCase));
         var hasShift = parts.Any(p => string.Equals(p, "shift", StringComparison.OrdinalIgnoreCase));
-        var keyName = parts.LastOrDefault(p => !string.Equals(p, "ctrl", StringComparison.OrdinalIgnoreCase) &&
-                                               !string.Equals(p, "control", StringComparison.OrdinalIgnoreCase) &&
-                                               !string.Equals(p, "alt", StringComparison.OrdinalIgnoreCase) &&
-                                               !string.Equals(p, "shift", StringComparison.OrdinalIgnoreCase));
+        var nonModifierParts = parts.Where(p => !string.Equals(p, "ctrl", StringComparison.OrdinalIgnoreCase) &&
+                                                !string.Equals(p, "control", StringComparison.OrdinalIgnoreCase) &&
+                                                !string.Equals(p, "alt", StringComparison.OrdinalIgnoreCase) &&
+                                                !string.Equals(p, "shift", StringComparison.OrdinalIgnoreCase)).ToList();
 
-        if (string.IsNullOrWhiteSpace(keyName))
+        if (nonModifierParts.Count != 1 || string.IsNullOrWhiteSpace(nonModifierParts[0]))
         {
             error = "Invalid shortcut format.";
             return false;
         }
 
-        keyName = keyName.ToUpperInvariant();
+        var keyName = nonModifierParts[0].ToUpperInvariant();
         var sb = new System.Text.StringBuilder();
         if (hasCtrl) sb.Append("Ctrl+");
         if (hasAlt) sb.Append("Alt+");
@@ -1096,8 +1113,18 @@ public sealed partial class ToolbarViewModel : ObservableObject
 
         if (hasCtrl && !hasAlt && !hasShift)
         {
-            string[] reservedCtrlKeys = ["N", "O", "S", "E", "C", "V", "Z", "Y", "0", "ENTER", "RETURN"];
+            string[] reservedCtrlKeys = ["N", "O", "S", "E", "C", "X", "V", "Z", "Y", "0", "ENTER", "RETURN"];
             if (reservedCtrlKeys.Contains(keyName, StringComparer.OrdinalIgnoreCase))
+            {
+                error = $"'{normalized}' is a reserved shortcut.";
+                return false;
+            }
+        }
+
+        if (hasCtrl && hasShift && !hasAlt)
+        {
+            string[] reservedCtrlShiftKeys = ["S", "Z"];
+            if (reservedCtrlShiftKeys.Contains(keyName, StringComparer.OrdinalIgnoreCase))
             {
                 error = $"'{normalized}' is a reserved shortcut.";
                 return false;

@@ -33,6 +33,8 @@ public partial class PageCanvasControl
             {
                 AttachStrokesHandler(target);
             }
+
+            UpdateStrokeSelectionBorder();
         }
         finally
         {
@@ -59,6 +61,12 @@ public partial class PageCanvasControl
     private void OnInternalStrokesChanged(object? sender, StrokeCollectionChangedEventArgs e)
     {
         if (_isSyncingStrokes || _isSplittingStroke || (e.Added.Count == 0 && e.Removed.Count == 0))
+        {
+            return;
+        }
+
+        // Prevent duplicate Undo/Redo recording when a second hidden PageCanvasControl (e.g. inactive view mode) shares the same StrokeCollection
+        if (!IsVisible && System.Windows.PresentationSource.FromVisual(this) is not null)
         {
             return;
         }

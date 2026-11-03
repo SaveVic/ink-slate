@@ -38,7 +38,6 @@ public sealed partial class ImageCanvasElementViewModel : CanvasElementViewModel
             {
                 ImageModel.CropX = value;
                 OnPropertyChanged(nameof(CropRect));
-        OnPropertyChanged(nameof(ClipGeometry));
                 OnPropertyChanged(nameof(ClipGeometry));
             }
         }
@@ -53,7 +52,6 @@ public sealed partial class ImageCanvasElementViewModel : CanvasElementViewModel
             {
                 ImageModel.CropY = value;
                 OnPropertyChanged(nameof(CropRect));
-        OnPropertyChanged(nameof(ClipGeometry));
                 OnPropertyChanged(nameof(ClipGeometry));
             }
         }
@@ -68,7 +66,6 @@ public sealed partial class ImageCanvasElementViewModel : CanvasElementViewModel
             {
                 ImageModel.CropWidth = value;
                 OnPropertyChanged(nameof(CropRect));
-        OnPropertyChanged(nameof(ClipGeometry));
                 OnPropertyChanged(nameof(ClipGeometry));
             }
         }
@@ -83,7 +80,6 @@ public sealed partial class ImageCanvasElementViewModel : CanvasElementViewModel
             {
                 ImageModel.CropHeight = value;
                 OnPropertyChanged(nameof(CropRect));
-        OnPropertyChanged(nameof(ClipGeometry));
                 OnPropertyChanged(nameof(ClipGeometry));
             }
         }

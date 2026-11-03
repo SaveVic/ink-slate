@@ -58,18 +58,25 @@ public static partial class DocumentValidator
         }
         else if (document.Title.Length > MaxTitleLength)
         {
-            document.Title = document.Title[..MaxTitleLength];
+            document.Title = TruncateSafe(document.Title, MaxTitleLength);
         }
 
         var defaultDims = PageDimensions.Clamp(document.DefaultPageWidth, document.DefaultPageHeight);
         document.DefaultPageWidth = defaultDims.Width;
         document.DefaultPageHeight = defaultDims.Height;
 
+        document.Pages ??= [];
         document.Pages.RemoveAll(static p => p is null);
 
+        var seenPageIds = new HashSet<Guid>();
         for (var i = 0; i < document.Pages.Count; i++)
         {
             SanitizePage(document.Pages[i], i + 1, defaultDims);
+            if (!seenPageIds.Add(document.Pages[i].Id))
+            {
+                document.Pages[i].Id = Guid.CreateVersion7();
+                seenPageIds.Add(document.Pages[i].Id);
+            }
         }
 
         return document;
@@ -103,6 +110,7 @@ public static partial class DocumentValidator
             page.IsfEntryPath = null;
         }
 
+        page.Elements ??= [];
         page.Elements.RemoveAll(static el =>
             el is null || (el is ImageCanvasElement img && !IsValidAssetKey(img.AssetKey)));
 
@@ -132,7 +140,7 @@ public static partial class DocumentValidator
                 textElement.Text ??= string.Empty;
                 if (textElement.Text.Length > MaxTextLength)
                 {
-                    textElement.Text = textElement.Text[..MaxTextLength];
+                    textElement.Text = TruncateSafe(textElement.Text, MaxTextLength);
                 }
 
                 if (string.IsNullOrWhiteSpace(textElement.FontFamily) ||
@@ -157,6 +165,17 @@ public static partial class DocumentValidator
                 imageElement.CropHeight = ClampFinite(imageElement.CropHeight, 0.0, MaxElementDimensionDip, 0.0);
                 break;
         }
+    }
+
+    public static string TruncateSafe(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value ?? string.Empty;
+        }
+
+        var len = char.IsHighSurrogate(value[maxLength - 1]) ? maxLength - 1 : maxLength;
+        return value[..len];
     }
 
     private static double ClampFinite(double value, double min, double max, double fallback) =>

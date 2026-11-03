@@ -44,9 +44,36 @@ public sealed class CanvasElementContainer : ContentControl
         Unloaded += OnUnloaded;
     }
 
+    private UndoRedoManager? _undoRedo;
+    private Guid _pageId;
+
     public CanvasElementViewModel Element { get; }
-    public UndoRedoManager? UndoRedo { get; set; }
-    public Guid PageId { get; set; }
+
+    public UndoRedoManager? UndoRedo
+    {
+        get => _undoRedo;
+        set
+        {
+            _undoRedo = value;
+            if (_adorner is not null)
+            {
+                _adorner.UndoRedo = value;
+            }
+        }
+    }
+
+    public Guid PageId
+    {
+        get => _pageId;
+        set
+        {
+            _pageId = value;
+            if (_adorner is not null)
+            {
+                _adorner.PageId = value;
+            }
+        }
+    }
     public bool IsPropertyChangedSubscribed => _isPropertyChangedSubscribed;
 
     public void ApplyGeometry()

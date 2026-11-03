@@ -26,7 +26,7 @@ public sealed class ElementTransformedOperation : IUndoableOperation
         Rect newBounds,
         Rect? oldCrop = null,
         Rect? newCrop = null)
-        : this(pageId, [new ElementTransformChange(element, oldBounds, newBounds, oldCrop, newCrop)], null)
+        : this(pageId, [new ElementTransformChange(element ?? throw new ArgumentNullException(nameof(element)), oldBounds, newBounds, oldCrop, newCrop)], null)
     {
     }
 
@@ -94,7 +94,7 @@ public sealed class ElementTransformedOperation : IUndoableOperation
 
     private static void ApplyCrop(ImageCanvasElement img, Rect? crop)
     {
-        if (crop.HasValue && !crop.Value.IsEmpty)
+        if (crop is { IsEmpty: false, Width: > 0, Height: > 0 })
         {
             img.CropX = crop.Value.X;
             img.CropY = crop.Value.Y;

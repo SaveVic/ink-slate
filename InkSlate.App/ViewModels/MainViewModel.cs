@@ -402,14 +402,29 @@ public sealed partial class MainViewModel : ObservableObject
                 nameof(Toolbar.IsTextItalic) or
                 nameof(Toolbar.SelectedTextColorHex))
             {
-                var activeText = ActivePage?.Elements.OfType<TextCanvasElementViewModel>()
-                    .FirstOrDefault(t => t.IsSelected || t.IsEditing);
-                if (activeText is not null)
+                var activeTexts = ActivePage?.Elements.OfType<TextCanvasElementViewModel>()
+                    .Where(t => t.IsSelected || t.IsEditing)
+                    .ToList();
+                if (activeTexts is { Count: > 0 })
                 {
-                    activeText.FontSize = Toolbar.SelectedTextFontSize;
-                    activeText.IsBold = Toolbar.IsTextBold;
-                    activeText.IsItalic = Toolbar.IsTextItalic;
-                    activeText.ForegroundHex = Toolbar.SelectedTextColorHex;
+                    foreach (var activeText in activeTexts)
+                    {
+                        switch (e.PropertyName)
+                        {
+                            case nameof(Toolbar.SelectedTextFontSize):
+                                activeText.FontSize = Toolbar.SelectedTextFontSize;
+                                break;
+                            case nameof(Toolbar.IsTextBold):
+                                activeText.IsBold = Toolbar.IsTextBold;
+                                break;
+                            case nameof(Toolbar.IsTextItalic):
+                                activeText.IsItalic = Toolbar.IsTextItalic;
+                                break;
+                            case nameof(Toolbar.SelectedTextColorHex):
+                                activeText.ForegroundHex = Toolbar.SelectedTextColorHex;
+                                break;
+                        }
+                    }
                 }
             }
         };
@@ -561,6 +576,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             ActivePage = mostVisiblePage;
         }
+        else if (maxIntersection <= 0.0)
+        {
+            ActivePage?.Hydrate();
+        }
     }
 
     partial void OnActivePageChanged(PageViewModel? oldValue, PageViewModel? newValue)
@@ -622,12 +641,52 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanUndo() => UndoRedo.CanUndo;
 
     [RelayCommand(CanExecute = nameof(CanUndo))]
-    private void Undo() => UndoRedo.Undo();
+    private void Undo()
+    {
+        var op = UndoRedo.PeekUndo();
+        var targetPage = op is not null ? Pages.FirstOrDefault(p => p.Id == op.PageId) : null;
+        var wasDehydrated = targetPage is { IsHydrated: false };
+        if (wasDehydrated)
+        {
+            targetPage!.Hydrate();
+        }
+
+        UndoRedo.Undo();
+
+        if (targetPage is not null)
+        {
+            targetPage.IsDirty = true;
+            if (wasDehydrated)
+            {
+                targetPage.Dehydrate();
+            }
+        }
+    }
 
     private bool CanRedo() => UndoRedo.CanRedo;
 
     [RelayCommand(CanExecute = nameof(CanRedo))]
-    private void Redo() => UndoRedo.Redo();
+    private void Redo()
+    {
+        var op = UndoRedo.PeekRedo();
+        var targetPage = op is not null ? Pages.FirstOrDefault(p => p.Id == op.PageId) : null;
+        var wasDehydrated = targetPage is { IsHydrated: false };
+        if (wasDehydrated)
+        {
+            targetPage!.Hydrate();
+        }
+
+        UndoRedo.Redo();
+
+        if (targetPage is not null)
+        {
+            targetPage.IsDirty = true;
+            if (wasDehydrated)
+            {
+                targetPage.Dehydrate();
+            }
+        }
+    }
 
     [RelayCommand]
     private void AddPage()
@@ -728,6 +787,7 @@ public sealed partial class MainViewModel : ObservableObject
         var wasActive = ReferenceEquals(ActivePage, targetPage);
 
         UnhookPage(targetPage);
+        UndoRedo.RemoveOperationsForPage(targetPage.Id);
         targetPage.Dehydrate();
         Pages.RemoveAt(index);
         Document.Pages.Remove(targetPage.Model);
@@ -977,6 +1037,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         HasDimensionInputError = false;
+        SelectedPreset = DetectPreset(validDims);
         Document.DefaultPageWidth = validDims.Width;
         Document.DefaultPageHeight = validDims.Height;
 
@@ -1431,6 +1492,8 @@ public sealed partial class MainViewModel : ObservableObject
         Toolbar.IsEraserOptionsOpen = false;
         Toolbar.IsLassoOptionsOpen = false;
         Toolbar.IsTextOptionsOpen = false;
+        Toolbar.IsCustomPenEditorOpen = false;
+        Toolbar.IsCustomColorPickerOpen = false;
     }
 
     [RelayCommand]
@@ -1567,6 +1630,12 @@ public sealed partial class MainViewModel : ObservableObject
                 Document.PageStrokes.Remove(key);
             }
 
+            if (string.IsNullOrWhiteSpace(DocumentTitle) || string.Equals(DocumentTitle, NoteDocument.DefaultTitle, StringComparison.Ordinal))
+            {
+                DocumentTitle = Path.GetFileNameWithoutExtension(filePath);
+            }
+            Document.Title = DocumentTitle;
+
             await FilePackageService.SaveAsync(
                 Document,
                 filePath,
@@ -1579,7 +1648,6 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             CurrentFilePath = filePath;
-            DocumentTitle = Path.GetFileNameWithoutExtension(filePath);
             IsDirty = false;
             DeleteCurrentRecoveryFile();
         }
@@ -1678,6 +1746,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void UnhookPage(PageViewModel page)
     {
         page.PropertyChanged -= OnPagePropertyChanged;
+        page.Detach();
     }
 
     private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)

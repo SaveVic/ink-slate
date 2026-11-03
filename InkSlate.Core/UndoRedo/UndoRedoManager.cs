@@ -20,6 +20,11 @@ public sealed class UndoRedoManager
     public bool CanUndo => _undoList.Count > 0;
     public bool CanRedo => _redoStack.Count > 0;
 
+    public IUndoableOperation? PeekUndo() => _undoList.Last?.Value;
+    public IUndoableOperation? PeekRedo() => _redoStack.Count > 0 ? _redoStack.Peek() : null;
+    public bool HasOperationsForPage(Guid pageId) =>
+        _undoList.Any(op => op.PageId == pageId) || _redoStack.Any(op => op.PageId == pageId);
+
     public event EventHandler? StateChanged;
 
     /// <summary>
@@ -52,6 +57,7 @@ public sealed class UndoRedoManager
     {
         ArgumentNullException.ThrowIfNull(operation);
 
+        var prevReplaying = IsReplaying;
         IsReplaying = true;
         try
         {
@@ -59,7 +65,7 @@ public sealed class UndoRedoManager
         }
         finally
         {
-            IsReplaying = false;
+            IsReplaying = prevReplaying;
         }
 
         Record(operation);
@@ -127,6 +133,56 @@ public sealed class UndoRedoManager
         _undoList.Clear();
         _redoStack.Clear();
         OnStateChanged();
+    }
+
+    public bool RemoveLastUndoIf(Func<IUndoableOperation, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        if (_undoList.Last is { } lastNode && predicate(lastNode.Value))
+        {
+            _undoList.RemoveLast();
+            OnStateChanged();
+            return true;
+        }
+
+        return false;
+    }
+
+    public void RemoveOperationsForPage(Guid pageId)
+    {
+        var changed = false;
+
+        var node = _undoList.First;
+        while (node is not null)
+        {
+            var next = node.Next;
+            if (node.Value.PageId == pageId)
+            {
+                _undoList.Remove(node);
+                changed = true;
+            }
+            node = next;
+        }
+
+        if (_redoStack.Count > 0)
+        {
+            var remaining = _redoStack.Where(op => op.PageId != pageId).Reverse().ToList();
+            if (remaining.Count != _redoStack.Count)
+            {
+                _redoStack.Clear();
+                foreach (var op in remaining)
+                {
+                    _redoStack.Push(op);
+                }
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            OnStateChanged();
+        }
     }
 
     private void OnStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);

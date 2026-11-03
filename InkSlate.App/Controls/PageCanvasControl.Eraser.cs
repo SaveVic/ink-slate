@@ -93,11 +93,21 @@ public partial class PageCanvasControl
                 RemoveElementCommand.Execute(element);
                 removedCount++;
             }
+            else if (DataContext is PageViewModel pageVm)
+            {
+                pageVm.RemoveElement(element);
+                removedCount++;
+            }
             else
             {
                 PageElements.Remove(element);
                 removedCount++;
             }
+        }
+
+        if (removedCount > 0)
+        {
+            IsPageDirty = true;
         }
 
         return removedCount;

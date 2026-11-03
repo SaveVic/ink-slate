@@ -44,7 +44,8 @@ public static class CrashRecoveryService
     {
         try
         {
-            var currentUser = WindowsIdentity.GetCurrent().User;
+            using var identity = WindowsIdentity.GetCurrent();
+            var currentUser = identity.User;
             if (currentUser is null)
             {
                 return;
@@ -66,13 +67,9 @@ public static class CrashRecoveryService
 
             dirInfo.SetAccessControl(security);
         }
-        catch (PlatformNotSupportedException)
+        catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException or InvalidOperationException or IOException)
         {
-            // Fallback for non-Windows or environments without ACL support
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // If ACL modification is restricted in sandbox, directory creation was already completed
+            // Fallback for non-Windows or file systems without ACL support
         }
     }
 
@@ -81,7 +78,8 @@ public static class CrashRecoveryService
     {
         try
         {
-            var currentUser = WindowsIdentity.GetCurrent().User;
+            using var identity = WindowsIdentity.GetCurrent();
+            var currentUser = identity.User;
             if (currentUser is null)
             {
                 return;
@@ -98,10 +96,7 @@ public static class CrashRecoveryService
 
             fileInfo.SetAccessControl(security);
         }
-        catch (PlatformNotSupportedException)
-        {
-        }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException or InvalidOperationException or IOException)
         {
         }
     }

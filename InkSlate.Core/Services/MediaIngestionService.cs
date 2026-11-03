@@ -143,69 +143,76 @@ public static class MediaIngestionService
         ImageFormat format,
         string? preferredKey)
     {
-        var decoder = BitmapDecoder.Create(
-            stream,
-            BitmapCreateOptions.DelayCreation,
-            BitmapCacheOption.None);
-
-        if (decoder.Frames.Count == 0)
+        try
         {
-            throw new InvalidDataException("Image contains no valid frames.");
-        }
+            var decoder = BitmapDecoder.Create(
+                stream,
+                BitmapCreateOptions.DelayCreation,
+                BitmapCacheOption.None);
 
-        var frame = decoder.Frames[0];
-        var rawWidth = frame.PixelWidth;
-        var rawHeight = frame.PixelHeight;
-
-        if (rawWidth <= 0 || rawHeight <= 0)
-        {
-            throw new InvalidDataException("Image has invalid dimensions.");
-        }
-
-        stream.Position = 0;
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.StreamSource = stream;
-
-        if (rawWidth > MaxDecodePixelDimension || rawHeight > MaxDecodePixelDimension)
-        {
-            if (rawWidth >= rawHeight)
+            if (decoder.Frames.Count == 0)
             {
-                bitmap.DecodePixelWidth = MaxDecodePixelDimension;
+                throw new InvalidDataException("Image contains no valid frames.");
+            }
+
+            var frame = decoder.Frames[0];
+            var rawWidth = frame.PixelWidth;
+            var rawHeight = frame.PixelHeight;
+
+            if (rawWidth <= 0 || rawHeight <= 0)
+            {
+                throw new InvalidDataException("Image has invalid dimensions.");
+            }
+
+            stream.Position = 0;
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+
+            if (rawWidth > MaxDecodePixelDimension || rawHeight > MaxDecodePixelDimension)
+            {
+                if (rawWidth >= rawHeight)
+                {
+                    bitmap.DecodePixelWidth = MaxDecodePixelDimension;
+                }
+                else
+                {
+                    bitmap.DecodePixelHeight = MaxDecodePixelDimension;
+                }
+            }
+
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            byte[] finalBytes;
+            string extension;
+
+            if (format == ImageFormat.Bmp)
+            {
+                var pngEncoder = new PngBitmapEncoder();
+                pngEncoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var transcodeMs = new MemoryStream();
+                pngEncoder.Save(transcodeMs);
+                finalBytes = transcodeMs.ToArray();
+                extension = "png";
             }
             else
             {
-                bitmap.DecodePixelHeight = MaxDecodePixelDimension;
+                finalBytes = rawBytes;
+                extension = format == ImageFormat.Jpeg ? "jpg" : "png";
             }
+
+            var assetKey = !string.IsNullOrWhiteSpace(preferredKey) && DocumentValidator.IsValidAssetKey(preferredKey)
+                ? preferredKey
+                : $"assets/{Guid.NewGuid():D}.{extension}";
+
+            return new IngestedMediaResult(assetKey, finalBytes, bitmap, bitmap.PixelWidth, bitmap.PixelHeight);
         }
-
-        bitmap.EndInit();
-        bitmap.Freeze();
-
-        byte[] finalBytes;
-        string extension;
-
-        if (format == ImageFormat.Bmp)
+        catch (Exception ex) when (ex is not InvalidDataException and not OutOfMemoryException)
         {
-            var pngEncoder = new PngBitmapEncoder();
-            pngEncoder.Frames.Add(BitmapFrame.Create(bitmap));
-            using var transcodeMs = new MemoryStream();
-            pngEncoder.Save(transcodeMs);
-            finalBytes = transcodeMs.ToArray();
-            extension = "png";
+            throw new InvalidDataException("Image data is corrupted or cannot be decoded.", ex);
         }
-        else
-        {
-            finalBytes = rawBytes;
-            extension = format == ImageFormat.Jpeg ? "jpg" : "png";
-        }
-
-        var assetKey = !string.IsNullOrWhiteSpace(preferredKey) && DocumentValidator.IsValidAssetKey(preferredKey)
-            ? preferredKey
-            : $"assets/{Guid.NewGuid():D}.{extension}";
-
-        return new IngestedMediaResult(assetKey, finalBytes, bitmap, bitmap.PixelWidth, bitmap.PixelHeight);
     }
 }
 

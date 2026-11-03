@@ -15,7 +15,7 @@ public sealed class NoteDocument
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public double DefaultPageWidth { get; set; } = PageDimensions.A4.Width;
     public double DefaultPageHeight { get; set; } = PageDimensions.A4.Height;
-    public List<NotePage> Pages { get; init; } = [];
+    public List<NotePage> Pages { get; set; } = [];
 
     [JsonIgnore]
     public Dictionary<string, byte[]> Assets { get; } = new(StringComparer.OrdinalIgnoreCase);

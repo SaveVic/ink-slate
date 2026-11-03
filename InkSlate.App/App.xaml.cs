@@ -38,7 +38,23 @@ public partial class App : Application
             !string.IsNullOrWhiteSpace(targetPath))
         {
             var mainVm = _serviceProvider.GetRequiredService<MainViewModel>();
-            _ = mainVm.LoadFromFileAsync(targetPath);
+            LoadStartupFileAsync(mainVm, targetPath);
+        }
+    }
+
+    private static async void LoadStartupFileAsync(MainViewModel mainVm, string targetPath)
+    {
+        try
+        {
+            await mainVm.LoadFromFileAsync(targetPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to open '{targetPath}':\n\n{ex.Message}",
+                "InkSlate — Open Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
     }
 

@@ -124,6 +124,7 @@ public partial class MainWindow : FluentWindow
         {
             var targetOffset = ViewModel.GetPageVerticalOffset(targetPage) * ViewportScrollViewer.ZoomLevel;
             ViewportScrollViewer.ScrollToVerticalOffset(targetOffset);
+            ViewModel.UpdateVisiblePagesHydration(targetOffset, ViewportScrollViewer.ViewportHeight);
         }
         else
         {
@@ -204,7 +205,8 @@ public partial class MainWindow : FluentWindow
 
         if (targetCanvas is null && ViewModel.ActivePage is not null)
         {
-            targetCanvas = allPageCanvases.FirstOrDefault(p => p.PageId == ViewModel.ActivePage.Id);
+            targetCanvas = allPageCanvases.FirstOrDefault(p => p.PageId == ViewModel.ActivePage.Id && p.IsVisible)
+                           ?? allPageCanvases.FirstOrDefault(p => p.PageId == ViewModel.ActivePage.Id);
         }
 
         if (targetCanvas is not null)

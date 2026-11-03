@@ -114,6 +114,7 @@ public static class FilePackageService
 
                     // 2. Write manifest.json
                     ct.ThrowIfCancellationRequested();
+                    document.UpdatedAt = DateTimeOffset.UtcNow;
                     var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
                     await using (var manifestStream = manifestEntry.Open())
                     {
@@ -130,16 +131,19 @@ public static class FilePackageService
                     {
                         foreach (var el in page.Elements)
                         {
-                            if (el is ImageCanvasElement img && !string.IsNullOrWhiteSpace(img.AssetKey))
+                            if (el is ImageCanvasElement img && DocumentValidator.IsValidAssetKey(img.AssetKey))
                             {
-                                assetKeys.Add(img.AssetKey);
+                                assetKeys.Add(img.AssetKey!);
                             }
                         }
                     }
 
                     foreach (var key in document.Assets.Keys)
                     {
-                        assetKeys.Add(key);
+                        if (DocumentValidator.IsValidAssetKey(key))
+                        {
+                            assetKeys.Add(key);
+                        }
                     }
 
                     foreach (var assetKey in assetKeys)
@@ -335,7 +339,7 @@ public static class FilePackageService
                     // Defensive recovery: Corrupted ISF data safely yields empty strokes
                     strokes = [];
                 }
-                catch (Exception ex) when (ex is not InvalidDataException and not OutOfMemoryException)
+                catch (Exception ex) when (ex is not InvalidDataException and not OperationCanceledException and not OutOfMemoryException)
                 {
                     strokes = [];
                 }

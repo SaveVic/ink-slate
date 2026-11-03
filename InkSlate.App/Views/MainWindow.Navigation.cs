@@ -31,14 +31,18 @@ public partial class MainWindow
                 ViewModel.ToggleHelpCommand.Execute(null);
                 return true;
             }
-            else if (key == Key.Escape && ViewModel.IsHelpOpen)
+            else if (key == Key.Escape && (
+                ViewModel.IsHelpOpen ||
+                ViewModel.IsPageSetupOpen ||
+                ViewModel.IsPdfExportOpen ||
+                ViewModel.Toolbar.IsPenOptionsOpen ||
+                ViewModel.Toolbar.IsEraserOptionsOpen ||
+                ViewModel.Toolbar.IsLassoOptionsOpen ||
+                ViewModel.Toolbar.IsTextOptionsOpen ||
+                ViewModel.Toolbar.IsCustomPenEditorOpen ||
+                ViewModel.Toolbar.IsCustomColorPickerOpen))
             {
-                ViewModel.CloseHelpCommand.Execute(null);
-                return true;
-            }
-            else if (key == Key.Escape && ViewModel.Toolbar.IsCustomPenEditorOpen)
-            {
-                ViewModel.Toolbar.CloseCustomPenEditorCommand.Execute(null);
+                ViewModel.CloseAllPopovers();
                 return true;
             }
             else if (key == Key.F2)

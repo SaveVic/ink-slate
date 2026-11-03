@@ -152,7 +152,7 @@
                             CornerRadius="4"
                             ClipToBounds="True"
                             Cursor="Cross"
-                            Background="{Binding Toolbar.CustomColorHueBaseBrush}"
+                            Background="{Binding Toolbar.CustomHueBaseBrush}"
                             MouseLeftButtonDown="ColorSpectrumBox_MouseLeftButtonDown"
                             MouseMove="ColorSpectrumBox_MouseMove"
                             MouseLeftButtonUp="ColorSpectrumBox_MouseLeftButtonUp">

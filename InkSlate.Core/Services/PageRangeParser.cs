@@ -67,9 +67,9 @@ public static class PageRangeParser
                     return false;
                 }
 
-                for (var p = startNum; p <= endNum; p++)
+                for (long p = startNum; p <= endNum; p++)
                 {
-                    uniqueIndices.Add(p - 1);
+                    uniqueIndices.Add((int)p - 1);
                 }
             }
             else

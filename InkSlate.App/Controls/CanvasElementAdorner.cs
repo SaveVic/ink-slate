@@ -76,8 +76,8 @@ public sealed class CanvasElementAdorner : Adorner
     }
 
     public CanvasElementViewModel ElementViewModel { get; }
-    public UndoRedoManager? UndoRedo { get; }
-    public Guid PageId { get; }
+    public UndoRedoManager? UndoRedo { get; set; }
+    public Guid PageId { get; set; }
 
     public bool IsCropMode { get; set; }
 
@@ -224,16 +224,18 @@ public sealed class CanvasElementAdorner : Adorner
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
+            var maxW = Math.Max(MinDimension, _initialBounds.Right);
+            var newW = Math.Clamp(_initialBounds.Width - _totalDeltaX, MinDimension, maxW);
             var newH = Math.Max(MinDimension, newW / aspect);
-            ElementViewModel.X = _initialBounds.Right - newW;
+            ElementViewModel.X = Math.Max(0.0, _initialBounds.Right - newW);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = newH;
         }
         else
         {
-            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
-            ElementViewModel.X = _initialBounds.Right - newW;
+            var maxW = Math.Max(MinDimension, _initialBounds.Right);
+            var newW = Math.Clamp(_initialBounds.Width - _totalDeltaX, MinDimension, maxW);
+            ElementViewModel.X = Math.Max(0.0, _initialBounds.Right - newW);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = Math.Max(MinDimension, _initialBounds.Height + _totalDeltaY);
         }
@@ -248,16 +250,18 @@ public sealed class CanvasElementAdorner : Adorner
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
-            var newH = Math.Max(MinDimension, newW / aspect);
-            ElementViewModel.Y = _initialBounds.Bottom - newH;
+            var maxH = Math.Max(MinDimension, _initialBounds.Bottom);
+            var newW = Math.Clamp(_initialBounds.Width + _totalDeltaX, MinDimension, maxH * aspect);
+            var newH = Math.Clamp(newW / aspect, MinDimension, maxH);
+            ElementViewModel.Y = Math.Max(0.0, _initialBounds.Bottom - newH);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = newH;
         }
         else
         {
-            var newH = Math.Max(MinDimension, _initialBounds.Height - _totalDeltaY);
-            ElementViewModel.Y = _initialBounds.Bottom - newH;
+            var maxH = Math.Max(MinDimension, _initialBounds.Bottom);
+            var newH = Math.Clamp(_initialBounds.Height - _totalDeltaY, MinDimension, maxH);
+            ElementViewModel.Y = Math.Max(0.0, _initialBounds.Bottom - newH);
             ElementViewModel.Width = Math.Max(MinDimension, _initialBounds.Width + _totalDeltaX);
             ElementViewModel.Height = newH;
         }
@@ -272,19 +276,22 @@ public sealed class CanvasElementAdorner : Adorner
         if (ElementViewModel is ImageCanvasElementViewModel && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
         {
             var aspect = Math.Max(0.01, _initialBounds.Width / Math.Max(1.0, _initialBounds.Height));
-            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
+            var maxW = Math.Min(Math.Max(MinDimension, _initialBounds.Right), Math.Max(MinDimension, _initialBounds.Bottom) * aspect);
+            var newW = Math.Clamp(_initialBounds.Width - _totalDeltaX, MinDimension, maxW);
             var newH = Math.Max(MinDimension, newW / aspect);
-            ElementViewModel.X = _initialBounds.Right - newW;
-            ElementViewModel.Y = _initialBounds.Bottom - newH;
+            ElementViewModel.X = Math.Max(0.0, _initialBounds.Right - newW);
+            ElementViewModel.Y = Math.Max(0.0, _initialBounds.Bottom - newH);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = newH;
         }
         else
         {
-            var newW = Math.Max(MinDimension, _initialBounds.Width - _totalDeltaX);
-            var newH = Math.Max(MinDimension, _initialBounds.Height - _totalDeltaY);
-            ElementViewModel.X = _initialBounds.Right - newW;
-            ElementViewModel.Y = _initialBounds.Bottom - newH;
+            var maxW = Math.Max(MinDimension, _initialBounds.Right);
+            var maxH = Math.Max(MinDimension, _initialBounds.Bottom);
+            var newW = Math.Clamp(_initialBounds.Width - _totalDeltaX, MinDimension, maxW);
+            var newH = Math.Clamp(_initialBounds.Height - _totalDeltaY, MinDimension, maxH);
+            ElementViewModel.X = Math.Max(0.0, _initialBounds.Right - newW);
+            ElementViewModel.Y = Math.Max(0.0, _initialBounds.Bottom - newH);
             ElementViewModel.Width = newW;
             ElementViewModel.Height = newH;
         }

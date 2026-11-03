@@ -170,6 +170,7 @@ public sealed class UserSettingsService
         if (settings.CustomPenPresets is not null)
         {
             var sanitizedPresets = new List<CustomPenPreset>();
+            var seenPresetIds = new HashSet<Guid>();
             foreach (var preset in settings.CustomPenPresets)
             {
                 if (preset is null)
@@ -177,9 +178,10 @@ public sealed class UserSettingsService
                     continue;
                 }
 
-                if (preset.Id == Guid.Empty)
+                if (preset.Id == Guid.Empty || !seenPresetIds.Add(preset.Id))
                 {
                     preset.Id = Guid.CreateVersion7();
+                    seenPresetIds.Add(preset.Id);
                 }
 
                 preset.Name = !string.IsNullOrWhiteSpace(preset.Name)
@@ -187,7 +189,7 @@ public sealed class UserSettingsService
                     : "Custom Pen";
                 if (preset.Name.Length > 64)
                 {
-                    preset.Name = preset.Name[..64];
+                    preset.Name = InkSlate.Core.Serialization.DocumentValidator.TruncateSafe(preset.Name, 64);
                 }
 
                 if (!TryNormalizeColorHex(preset.ColorHex, out var normColor, out _, out _, out _))
@@ -208,7 +210,7 @@ public sealed class UserSettingsService
                 preset.Shortcut = preset.Shortcut?.Trim() ?? string.Empty;
                 if (preset.Shortcut.Length > 32)
                 {
-                    preset.Shortcut = preset.Shortcut[..32];
+                    preset.Shortcut = InkSlate.Core.Serialization.DocumentValidator.TruncateSafe(preset.Shortcut, 32);
                 }
 
                 sanitizedPresets.Add(preset);

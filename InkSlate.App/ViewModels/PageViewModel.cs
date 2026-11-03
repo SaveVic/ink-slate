@@ -19,6 +19,7 @@ public sealed partial class PageViewModel : ObservableObject
 
     private readonly SynchronizedCanvasElementList _synchronizedElements;
     private byte[]? _compressedIsfBytes;
+    private StrokeCollection? _cachedHydratedStrokes;
 
     internal IList<CanvasElement> SynchronizedElements => _synchronizedElements;
 
@@ -374,37 +375,58 @@ public sealed partial class PageViewModel : ObservableObject
 
         foreach (var empty in emptyTexts)
         {
-            RemoveElement(empty);
+            RemoveEmptyTextElement(empty);
+        }
+    }
+
+    public void RemoveEmptyTextElement(TextCanvasElementViewModel textVm)
+    {
+        var index = Elements.IndexOf(textVm);
+        if (index < 0)
+        {
+            return;
+        }
+
+        textVm.PropertyChanged -= OnElementPropertyChanged;
+        textVm.RequestDelete = null;
+        Elements.RemoveAt(index);
+        Model.Elements.Remove(textVm.Model);
+
+        if (UndoRedo is not null && !UndoRedo.IsReplaying)
+        {
+            var removedUncommittedAdd = UndoRedo.RemoveLastUndoIf(
+                op => op is ElementAddedOperation added && ReferenceEquals(added.Element, textVm.Model));
+
+            if (!removedUncommittedAdd)
+            {
+                IsDirty = true;
+                UndoRedo.Record(new ElementRemovedOperation(Id, _synchronizedElements, textVm.Model, index));
+            }
         }
     }
 
     private void OnElementPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is not nameof(CanvasElementViewModel.IsSelected)
+            and not nameof(CanvasElementViewModel.IsEditing)
+            and not nameof(ImageCanvasElementViewModel.ClipGeometry)
+            and not nameof(ImageCanvasElementViewModel.ImageSource))
+        {
+            IsDirty = true;
+        }
+
         if (sender is TextCanvasElementViewModel textVm && e.PropertyName == nameof(TextCanvasElementViewModel.IsEditing))
         {
             if (!textVm.IsEditing && string.IsNullOrWhiteSpace(textVm.Text))
             {
-                var dispatcher = System.Windows.Application.Current?.Dispatcher;
-                if (dispatcher is not null && !dispatcher.CheckAccess())
-                {
-                    dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
-                    {
-                        if (!textVm.IsEditing && string.IsNullOrWhiteSpace(textVm.Text))
-                        {
-                            RemoveElement(textVm);
-                        }
-                    });
-                }
-                else
-                {
-                    RemoveElement(textVm);
-                }
+                RemoveEmptyTextElement(textVm);
             }
         }
     }
 
     public void LoadIsfBytes(byte[]? isfBytes)
     {
+        _cachedHydratedStrokes = null;
         _compressedIsfBytes = isfBytes is { Length: > 0 } ? [.. isfBytes] : null;
         IsDirty = false;
 
@@ -454,26 +476,34 @@ public sealed partial class PageViewModel : ObservableObject
         }
 
         StrokeCollection hydratedStrokes;
-        if (_compressedIsfBytes is { Length: > 0 })
+        if (_cachedHydratedStrokes is not null && UndoRedo?.HasOperationsForPage(Id) == true)
         {
-            try
+            hydratedStrokes = _cachedHydratedStrokes;
+            _cachedHydratedStrokes = null;
+        }
+        else
+        {
+            _cachedHydratedStrokes = null;
+            if (_compressedIsfBytes is { Length: > 0 })
             {
-                using var ms = new MemoryStream(_compressedIsfBytes, writable: false);
-                var loaded = new StrokeCollection(ms);
-                var split = StrokeSplitter.SplitAll(loaded);
-                hydratedStrokes = EnforceStylusPointBudget(split);
+                try
+                {
+                    using var ms = new MemoryStream(_compressedIsfBytes, writable: false);
+                    var loaded = new StrokeCollection(ms);
+                    var split = StrokeSplitter.SplitAll(loaded);
+                    hydratedStrokes = EnforceStylusPointBudget(split);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    hydratedStrokes = [];
+                }
             }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
+            else
             {
                 hydratedStrokes = [];
             }
         }
-        else
-        {
-            hydratedStrokes = [];
-        }
 
-        hydratedStrokes.StrokesChanged += OnStrokesChanged;
         Strokes = hydratedStrokes;
 
         foreach (var element in Elements)
@@ -507,9 +537,48 @@ public sealed partial class PageViewModel : ObservableObject
             _compressedIsfBytes = ms.ToArray();
         }
 
+        _cachedHydratedStrokes = UndoRedo?.HasOperationsForPage(Id) == true ? Strokes : null;
+
+        SelectedStrokes?.Clear();
+        SelectedStrokes = null;
         IsDirty = false;
         Strokes = null;
         IsHydrated = false;
+    }
+
+    public void Detach()
+    {
+        if (UndoRedo is not null)
+        {
+            UndoRedo.StateChanged -= OnUndoRedoStateChanged;
+        }
+
+        if (Strokes is not null)
+        {
+            Strokes.StrokesChanged -= OnStrokesChanged;
+        }
+
+        _cachedHydratedStrokes = null;
+
+        foreach (var el in Elements)
+        {
+            el.PropertyChanged -= OnElementPropertyChanged;
+            el.RequestDelete = null;
+        }
+    }
+
+    partial void OnStrokesChanged(StrokeCollection? oldValue, StrokeCollection? newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.StrokesChanged -= OnStrokesChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.StrokesChanged -= OnStrokesChanged;
+            newValue.StrokesChanged += OnStrokesChanged;
+        }
     }
 
     private void OnStrokesChanged(object? sender, StrokeCollectionChangedEventArgs e)
@@ -555,6 +624,9 @@ public sealed partial class PageViewModel : ObservableObject
         {
             if (ReferenceEquals(Elements[i].Model, item))
             {
+                var vm = Elements[i];
+                vm.PropertyChanged -= OnElementPropertyChanged;
+                vm.RequestDelete = null;
                 Elements.RemoveAt(i);
                 break;
             }
@@ -564,6 +636,11 @@ public sealed partial class PageViewModel : ObservableObject
     private void OnSynchronizedElementsCleared()
     {
         IsDirty = true;
+        foreach (var vm in Elements)
+        {
+            vm.PropertyChanged -= OnElementPropertyChanged;
+            vm.RequestDelete = null;
+        }
         Elements.Clear();
     }
 
@@ -623,8 +700,9 @@ public sealed partial class PageViewModel : ObservableObject
             get => _inner[index];
             set
             {
+                var oldItem = _inner[index];
                 _inner[index] = value;
-                _owner.OnSynchronizedElementRemoved(_inner[index]);
+                _owner.OnSynchronizedElementRemoved(oldItem);
                 _owner.OnSynchronizedElementInserted(index, value);
             }
         }

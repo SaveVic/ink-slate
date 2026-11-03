@@ -46,54 +46,62 @@ public partial class PageCanvasControl
             return null;
         }
 
-        // Check in reverse order so topmost visual element is hit first
+        // Select the hit element with highest ZIndex; break ties by highest index (most recently added)
+        CanvasElementViewModel? bestMatch = null;
         for (var i = PageElements.Count - 1; i >= 0; i--)
         {
             var el = PageElements[i];
             if (el.HitTest(canvasPoint))
             {
-                return el;
-            }
-        }
-
-        return null;
-    }
-
-    public void SelectSingleObject(CanvasElementViewModel? element, Stroke? stroke)
-    {
-        if (DataContext is PageViewModel pageVm)
-        {
-            pageVm.SelectSingleElement(element);
-            if (element is not null)
-            {
-                element.IsSelected = true;
-            }
-            pageVm.SelectedStrokes = stroke is not null ? [stroke] : null;
-        }
-        else if (PageElements is not null)
-        {
-            foreach (var el in PageElements)
-            {
-                el.IsSelected = ReferenceEquals(el, element);
-                if (!el.IsSelected)
+                if (bestMatch is null || el.ZIndex > bestMatch.ZIndex)
                 {
-                    el.IsEditing = false;
+                    bestMatch = el;
                 }
             }
         }
 
-        var strokes = stroke is not null ? new StrokeCollection([stroke]) : new StrokeCollection();
-        var elements = new List<UIElement>();
-        if (element is not null && _containers.TryGetValue(element, out var container))
-        {
-            elements.Add(container);
-        }
+        return bestMatch;
+    }
 
+    public void SelectSingleObject(CanvasElementViewModel? element, Stroke? stroke)
+    {
         _isSyncingSelection = true;
         try
         {
+            if (DataContext is PageViewModel pageVm)
+            {
+                pageVm.SelectSingleElement(element);
+                if (element is not null)
+                {
+                    element.IsSelected = true;
+                }
+                pageVm.SelectedStrokes = stroke is not null ? [stroke] : null;
+            }
+            else if (PageElements is not null)
+            {
+                foreach (var el in PageElements)
+                {
+                    el.IsSelected = ReferenceEquals(el, element);
+                    if (!el.IsSelected)
+                    {
+                        el.IsEditing = false;
+                    }
+                }
+            }
+
+            var strokes = stroke is not null ? new StrokeCollection([stroke]) : new StrokeCollection();
+            var elements = new List<UIElement>();
+            if (element is not null && _containers.TryGetValue(element, out var container))
+            {
+                elements.Add(container);
+            }
+
             SelectedStrokes = strokes;
             InternalInkCanvas.Select(strokes, elements);
+            foreach (var c in _containers.Values)
+            {
+                c.RefreshAdornerAttachment();
+            }
             SnapshotSelectionState();
             UpdateStrokeSelectionBorder();
             UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
@@ -179,6 +187,12 @@ public partial class PageCanvasControl
     protected override void OnQueryCursor(QueryCursorEventArgs e)
     {
         base.OnQueryCursor(e);
+
+        if (FindAncestor<ZoomScrollViewer>(this) is { } scrollViewer &&
+            (scrollViewer.IsSpaceKeyDown || scrollViewer.IsPanning))
+        {
+            return;
+        }
 
         if (ActiveToolMode == ToolMode.Pointer)
         {
@@ -332,11 +346,33 @@ public partial class PageCanvasControl
 
             if (_hasPointerDraggedBeyondThreshold)
             {
+                var minInitialX = double.PositiveInfinity;
+                var minInitialY = double.PositiveInfinity;
+
+                foreach (var (_, initial) in _selectedElementInitialBounds)
+                {
+                    if (initial.X < minInitialX) minInitialX = initial.X;
+                    if (initial.Y < minInitialY) minInitialY = initial.Y;
+                }
+
+                foreach (var (_, initialPoints) in _selectedStrokeInitialPoints)
+                {
+                    for (var i = 0; i < initialPoints.Count; i++)
+                    {
+                        var pt = initialPoints[i];
+                        if (pt.X < minInitialX) minInitialX = pt.X;
+                        if (pt.Y < minInitialY) minInitialY = pt.Y;
+                    }
+                }
+
+                var clampedDeltaX = double.IsFinite(minInitialX) ? Math.Max(delta.X, -minInitialX) : delta.X;
+                var clampedDeltaY = double.IsFinite(minInitialY) ? Math.Max(delta.Y, -minInitialY) : delta.Y;
+
                 // Translate selected elements
                 foreach (var (container, initial) in _selectedElementInitialBounds)
                 {
-                    var newX = Math.Max(0.0, initial.X + delta.X);
-                    var newY = Math.Max(0.0, initial.Y + delta.Y);
+                    var newX = Math.Max(0.0, initial.X + clampedDeltaX);
+                    var newY = Math.Max(0.0, initial.Y + clampedDeltaY);
                     container.Element.X = newX;
                     container.Element.Y = newY;
                     InkCanvas.SetLeft(container, newX);
@@ -350,8 +386,8 @@ public partial class PageCanvasControl
                     for (var i = 0; i < initialPoints.Count; i++)
                     {
                         var pt = initialPoints[i];
-                        var newX = Math.Max(0.0, pt.X + delta.X);
-                        var newY = Math.Max(0.0, pt.Y + delta.Y);
+                        var newX = Math.Max(0.0, pt.X + clampedDeltaX);
+                        var newY = Math.Max(0.0, pt.Y + clampedDeltaY);
                         translatedPoints.Add(new StylusPoint(newX, newY, pt.PressureFactor));
                     }
                     stroke.StylusPoints = translatedPoints;
@@ -384,53 +420,53 @@ public partial class PageCanvasControl
 
     public void SelectObjectsInRect(Rect selectRect)
     {
-        var elementsToSelect = new List<UIElement>();
-        var strokesToSelect = new StrokeCollection();
-
-        var allowElements = ActiveLassoFilterMode is LassoFilterMode.AllObjects or LassoFilterMode.ElementsOnly;
-        var allowStrokes = ActiveLassoFilterMode is LassoFilterMode.AllObjects or LassoFilterMode.StrokesOnly;
-
-        if (allowElements && PageElements is not null)
-        {
-            foreach (var el in PageElements)
-            {
-                var elRect = new Rect(el.X, el.Y, el.Width, el.Height);
-                var intersects = selectRect.IntersectsWith(elRect);
-                el.IsSelected = intersects;
-                if (!intersects)
-                {
-                    el.IsEditing = false;
-                }
-                else if (_containers.TryGetValue(el, out var c))
-                {
-                    elementsToSelect.Add(c);
-                }
-            }
-        }
-        else if (PageElements is not null)
-        {
-            foreach (var el in PageElements)
-            {
-                el.IsSelected = false;
-                el.IsEditing = false;
-            }
-        }
-
-        if (allowStrokes && InternalInkCanvas.Strokes is not null)
-        {
-            foreach (var stroke in InternalInkCanvas.Strokes)
-            {
-                var strokeBounds = stroke.GetBounds();
-                if (selectRect.IntersectsWith(strokeBounds) || stroke.HitTest(selectRect, 10))
-                {
-                    strokesToSelect.Add(stroke);
-                }
-            }
-        }
-
         _isSyncingSelection = true;
         try
         {
+            var elementsToSelect = new List<UIElement>();
+            var strokesToSelect = new StrokeCollection();
+
+            var allowElements = ActiveLassoFilterMode is LassoFilterMode.AllObjects or LassoFilterMode.ElementsOnly;
+            var allowStrokes = ActiveLassoFilterMode is LassoFilterMode.AllObjects or LassoFilterMode.StrokesOnly;
+
+            if (allowElements && PageElements is not null)
+            {
+                foreach (var el in PageElements)
+                {
+                    var elRect = new Rect(el.X, el.Y, el.Width, el.Height);
+                    var intersects = selectRect.IntersectsWith(elRect);
+                    el.IsSelected = intersects;
+                    if (!intersects)
+                    {
+                        el.IsEditing = false;
+                    }
+                    else if (_containers.TryGetValue(el, out var c))
+                    {
+                        elementsToSelect.Add(c);
+                    }
+                }
+            }
+            else if (PageElements is not null)
+            {
+                foreach (var el in PageElements)
+                {
+                    el.IsSelected = false;
+                    el.IsEditing = false;
+                }
+            }
+
+            if (allowStrokes && InternalInkCanvas.Strokes is not null)
+            {
+                foreach (var stroke in InternalInkCanvas.Strokes)
+                {
+                    var strokeBounds = stroke.GetBounds();
+                    if (selectRect.IntersectsWith(strokeBounds) || stroke.HitTest(selectRect, 10))
+                    {
+                        strokesToSelect.Add(stroke);
+                    }
+                }
+            }
+
             SelectedStrokes = strokesToSelect;
             if (DataContext is PageViewModel pageVm)
             {
@@ -438,6 +474,10 @@ public partial class PageCanvasControl
             }
 
             InternalInkCanvas.Select(strokesToSelect, elementsToSelect);
+            foreach (var c in _containers.Values)
+            {
+                c.RefreshAdornerAttachment();
+            }
             UpdateStrokeSelectionBorder();
             UpdatePointerCursor(Mouse.GetPosition(InternalInkCanvas));
         }
@@ -530,7 +570,7 @@ public partial class PageCanvasControl
     {
         while (obj is not null)
         {
-            if (obj is CanvasElementContainer or CanvasElementAdorner)
+            if (obj is CanvasElementContainer or System.Windows.Documents.Adorner)
             {
                 return true;
             }

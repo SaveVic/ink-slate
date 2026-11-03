@@ -82,6 +82,7 @@ public partial class PageCanvasControl
         element.PropertyChanged -= OnElementPropertyChanged;
         if (_containers.Remove(element, out var container))
         {
+            _selectedElementInitialBounds.Remove(container);
             container.Detach();
             InternalInkCanvas.Children.Remove(container);
         }
@@ -229,7 +230,12 @@ public partial class PageCanvasControl
             var selectedElements = InternalInkCanvas.GetSelectedElements();
             foreach (var container in _containers.Values)
             {
-                container.Element.IsSelected = selectedElements.Contains(container);
+                var isSelected = selectedElements.Contains(container);
+                container.Element.IsSelected = isSelected;
+                if (!isSelected)
+                {
+                    container.Element.IsEditing = false;
+                }
                 container.RefreshAdornerAttachment();
             }
 
@@ -239,6 +245,8 @@ public partial class PageCanvasControl
             {
                 pageVm.SelectedStrokes = strokes;
             }
+
+            UpdateStrokeSelectionBorder();
         }
         finally
         {
@@ -324,6 +332,7 @@ public partial class PageCanvasControl
             }
 
             SnapshotSelectionState();
+            UpdateStrokeSelectionBorder();
         }
     }
 

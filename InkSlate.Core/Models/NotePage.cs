@@ -12,6 +12,6 @@ public sealed class NotePage
     public double Height { get; set; } = PageDimensions.A4.Height;
     public string BackgroundHex { get; set; } = DefaultBackgroundHex;
     public string? IsfEntryPath { get; set; }
-    public List<CanvasElement> Elements { get; init; } = [];
+    public List<CanvasElement> Elements { get; set; } = [];
 }
 

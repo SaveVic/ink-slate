@@ -18,6 +18,7 @@ public sealed class ElementAddedOperation : IUndoableOperation
     }
 
     public Guid PageId { get; }
+    public CanvasElement Element => _element;
 
     public void Undo() => _targetElements.Remove(_element);
 

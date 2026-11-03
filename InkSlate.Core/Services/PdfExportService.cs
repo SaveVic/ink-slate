@@ -243,11 +243,12 @@ public static class PdfExportService
         var slant = textEl.IsItalic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
         var width = SKFontStyleWidth.Normal;
 
-        using var typeface = SKTypeface.FromFamilyName(
+        using var createdTypeface = SKTypeface.FromFamilyName(
             string.IsNullOrWhiteSpace(textEl.FontFamily) ? "Segoe UI" : textEl.FontFamily,
             weight,
             width,
-            slant) ?? SKTypeface.Default;
+            slant);
+        var typeface = createdTypeface ?? SKTypeface.Default;
 
         using var skFont = new SKFont(typeface, (float)Math.Max(1.0, textEl.FontSize));
         var textColor = SKColor.TryParse(textEl.ForegroundHex, out var parsed) ? parsed : SKColors.Black;
@@ -284,7 +285,20 @@ public static class PdfExportService
                 {
                     linesToDraw.Add(currentLine.ToString());
                     currentLine.Clear();
-                    currentLine.Append(word);
+                }
+
+                if (skFont.MeasureText(word) > maxLineWidth)
+                {
+                    foreach (var ch in word)
+                    {
+                        var charTest = $"{currentLine}{ch}";
+                        if (skFont.MeasureText(charTest) > maxLineWidth && currentLine.Length > 0)
+                        {
+                            linesToDraw.Add(currentLine.ToString());
+                            currentLine.Clear();
+                        }
+                        currentLine.Append(ch);
+                    }
                 }
                 else
                 {
@@ -307,7 +321,7 @@ public static class PdfExportService
 
         foreach (var line in linesToDraw)
         {
-            if (y - metrics.Ascent > maxY + lineHeight * 2)
+            if (y + metrics.Descent > maxY + lineHeight * 2)
             {
                 break;
             }
@@ -332,7 +346,7 @@ public static class PdfExportService
         var da = stroke.DrawingAttributes;
         var isHighlighter = da.IsHighlighter;
         var color = ToSkColor(da.Color, isHighlighter);
-        var strokeWidth = (float)Math.Max(1.0, Math.Max(da.Width, da.Height));
+        var strokeWidth = (float)Math.Max(0.5, Math.Max(da.Width, da.Height));
         var strokeCap = da.StylusTip == StylusTip.Rectangle ? SKStrokeCap.Square : SKStrokeCap.Round;
 
         using var skPaint = new SKPaint
